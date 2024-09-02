@@ -52,7 +52,7 @@ function y_hat = h_relative(sv_pos, ref_pos, x)
     
     for i = 1:size(sv_pos, 2)
         ref_los = (sv_pos(:, i) - ref_pos(1:3, 1)) / norm(sv_pos(:, i) - ref_pos(1:3, 1));
-        y_hat(i, 1) = ref_los' * x(1:3,1) + x(4);
+        y_hat(i, 1) = ref_los' * x(1:3,1);
     end
     
 end
@@ -70,6 +70,6 @@ function H = compute_H_relative(sv_pos, ref_pos, x)
         geometry_length = abs((sv_pos(:, i) - ref_pos(1:3, 1))') * x(1:3, 1) ./ norm(sv_pos(:, i) - ref_pos(1:3, 1));
 
         H(i, 1:3) = x(1:3, 1)'/ geometry_length;
-        H(i, 4) = 1; % Clock bias term
+        H(i, 4) = 0; % Clock bias term
     end
 end
