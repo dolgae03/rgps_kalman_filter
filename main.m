@@ -1,37 +1,25 @@
 % Kalman Filter with 3D RMS Error Plot for both KF solution and Measurements
 
-% 초기 설정
-dt = 1; % 시간 간격
-A = [1 0 0 dt 0 0 0 0; % x
-     0 1 0 0 dt 0 0 0; % y
-     0 0 1 0 0 dt 0 0; % z
-     0 0 0 1 0 0 0 0; % vx
-     0 0 0 0 1 0 0 0; % vy
-     0 0 0 0 0 1 0 0; % vz
-     0 0 0 0 0 0 1 dt; % b
-     0 0 0 0 0 0 0 1]; % b_dot
-
-Q = diag([0.1 0.1 0.1 0.1 0.1 0.1 0.01 0.01]); % 프로세스 노이즈 공분산
-
 %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
-x = [30; 30; 30; 1; 1; 1; 0; 0]; % 초기 상태 추정
-P = eye(8); % 초기 공분산 추정
+x = [3e5; 4e5; 5e5; 0;]; % 초기 상태 추정
+P = [1000 * eye(3) zeros(3,1);
+     zeros(1,3) 1]; % 초기 공분산 추정
 
 %% 시뮬레이션 설정
-num_iterations = 300; % 시간 단계 수
+num_iterations = 1000; % 시간 단계 수
 
 
 dataset = make_dataset(num_iterations);
-true_position = (dataset.sat2_positions - dataset.sat1_positions)';
-true_velocity = [1; 1; 1];
+% true_position = (dataset.sat2_positions - dataset.sat1_positions)';
+true_position = (dataset.sat1_positions)';
 
 true_bias = 0; % 시계 오차
-true_bias_drift = 0.00; % 시계 오차의 드리프트
-true_state = [0; 0; 0; true_velocity; true_bias; true_bias_drift];
 
 % 데이터를 저장할 배열
 measurements = dataset.measurements;
-estimated_states = zeros(8, num_iterations);
+gps_pos = dataset.gps_positions;
+estimated_states = zeros(4, num_iterations);
+ls_position = zeros(4, num_iterations, 2);
 
 %% True Position 생성 및 Measurement 생성
 for k = 1:num_iterations
@@ -40,39 +28,61 @@ for k = 1:num_iterations
     % [x, P] = prediction(x, P, A, Q);
     
     % Correction 단계
-    R = 5.* eye(size(measurements, 1));
-    [x, P] = correction(x, P, measurements(:, :, k), R);
+    R = 2.* eye(size(measurements, 1));
+
+    mes = measurements(:, :, k);
+    gps_pos_k = gps_pos(:, :, k)';
+         
+    ref_pos = GNSS_LS(mes(:,1), length(mes), gps_pos_k);
+    ref_pos2 = GNSS_LS(mes(:, 2),length(mes), gps_pos_k);
+
+    [x, P] = correction(x, P, gps_pos_k, mes, R);
     
     % 추정된 상태 저장
+    ls_position(:, k, 1) = ref_pos;
+    ls_position(:, k, 2) = ref_pos2;
     estimated_states(:, k) = x;
 end
 
-% 3D RMS Error 계산
-kf_errors = sqrt(sum((true_position - estimated_states(1:3, :)).^2, 1));
+%% 3D RMS Error 계산
+estimated_position = estimated_states(1:3, :);
+kf_errors = sqrt(sum((true_position - estimated_position(1:3, :)).^2, 1));
 kf_rms_error = sqrt(mean(kf_errors.^2));
+ls_position_rel = ls_position(1:3, k, 2) - ls_position(1:3, k, 1);
 
 % 결과 플로팅
 time = 1:num_iterations;
 
-% 3D Trajectory Plot
-figure;
-plot3(true_position(1, :), true_position(2, :), true_position(3, :), '-g', 'LineWidth', 2); hold on;
-plot3(estimated_states(1, :), estimated_states(2, :), estimated_states(3, :), '-r', 'LineWidth', 2);
+error_x = true_position(1, :) - estimated_position(1, :);
+error_y = true_position(2, :) - estimated_position(2, :);
+error_z = true_position(3, :) - estimated_position(3, :);
 
-legend('True Position', 'Estimated Position');
-title('Kalman Filter Position Estimation (3D)');
-xlabel('X Position');
-ylabel('Y Position');
-zlabel('Z Position');
-grid on;
-
-% RMS Error Plot
+%% 서브플롯 생성
 figure;
-plot(time, kf_errors, '-r', 'LineWidth', 2);
-legend('KF RMS Error');
-title('3D RMS Error over Time');
+
+subplot(3,1,1);
+plot(time, error_x, '-r', 'LineWidth', 2);
+legend('X-axis Error');
+title('X-axis Error over Time');
 xlabel('Time step');
-ylabel('3D RMS Error');
+ylabel('Error (meters)');
 grid on;
 
-fprintf('Final RMS error (KF): %.4f meters\n', kf_rms_error);
+subplot(3,1,2);
+plot(time, error_y, '-g', 'LineWidth', 2);
+legend('Y-axis Error');
+title('Y-axis Error over Time');
+xlabel('Time step');
+ylabel('Error (meters)');
+grid on;
+
+subplot(3,1,3);
+plot(time, error_z, '-b', 'LineWidth', 2);
+legend('Z-axis Error');
+title('Z-axis Error over Time');
+xlabel('Time step');
+ylabel('Error (meters)');
+
+fprintf('Final RMS error (KF) in X-axis: %.4f meters\n', sqrt(mean(error_x.^2)));
+fprintf('Final RMS error (KF) in Y-axis: %.4f meters\n', sqrt(mean(error_y.^2)));
+fprintf('Final RMS error (KF) in Z-axis: %.4f meters\n', sqrt(mean(error_z.^2)));

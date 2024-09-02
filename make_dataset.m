@@ -15,19 +15,21 @@ function dataset = make_dataset(num_samples)
     true_positions_sat1 = zeros(num_samples, 3);
     true_positions_sat2 = zeros(num_samples, 3);
 
-    target_prn = [1, 3, 10, 29, 13, 22, 19, 2, 5, 7];
+    target_prn = 1:31;
 
     measurements = zeros(length(target_prn), 2, num_samples);
+    position_sv= zeros(length(target_prn), 3, num_samples);
     for i = 1:num_samples
         pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
         pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
         idx = 1;
 
-        pos_gps = states(gps_sv,times(i), "CoordinateFrame", 'ecef');
+        pos_gps = states(gps_sv, times(i), "CoordinateFrame", 'ecef');
         for j = 1:31
             if ismember(j, target_prn)
-                measurements(idx, 1, i) = generate_pr(pos_gps(:,:,j), pos1, 2);
-                measurements(idx, 2, i) = generate_pr(pos_gps(:,:,j), pos2, 2);
+                measurements(idx, 1, i) = generate_pr(pos_gps(:,:,j), pos1, 0);
+                measurements(idx, 2, i) = generate_pr(pos_gps(:,:,j), pos2, 0);
+                position_sv(idx, :, i) = pos_gps(:,:,j);
                 idx = idx + 1;
             end
         end
@@ -38,7 +40,8 @@ function dataset = make_dataset(num_samples)
 
     dataset.sat1_positions = true_positions_sat1;
     dataset.sat2_positions = true_positions_sat2;
-    dataset.measurements = measurements
+    dataset.measurements = measurements;
+    dataset.gps_positions = position_sv;
     dataset.times = times;
 end
 
