@@ -22,7 +22,7 @@ estimated_states = zeros(val_num, num_iterations);
 ls_position = zeros(4, num_iterations);
 
 %% Kalman Filter 정의
-kalman_filter = TC_ABS_REL_KF(init_x, P);
+kalman_filter = TC_ABS_REL_KF(init_x, P, false);
 
 %% Simulatin 수행
 for k = 1:num_iterations
@@ -33,21 +33,30 @@ for k = 1:num_iterations
     %% Correction 단계
     R = 20 .* eye(size(measurements, 1) * 2);
 
+    % LS Measurement Update
     mes = measurements(:, :, k);
     gps_pos_k = gps_pos(:, :, k)';
 
+    ref_pos = GNSS_LS(measurements(:, 1, k), length(mes), gps_pos_k);
+    ref_pos2 = GNSS_LS(measurements(:, 2, k),length(mes), gps_pos_k);
+
+    % KF Measruement 처리
     z_abs = measurements(:, 1, k);
     z_rel = measurements(:, 1, k) - measurements(:, 2, k);
 
-    ref_pos = GNSS_LS(measurements(:, 1, k), length(mes), gps_pos_k);
-    ref_pos2 = GNSS_LS(measurements(:, 2, k),length(mes), gps_pos_k);
+    rotated_gps_pos_k = zeros(size(gps_pos_k));
+    for j = 1:length(gps_pos_k)
+        rotated_gps_pos_k(:,j) = rotate_gps_forward(gps_pos_k(:, j), ref_pos(1:3, 1));
+    end
     
-    kalman_filter = kalman_filter.correct(gps_pos_k, z_abs, z_rel, R);
+    kalman_filter = kalman_filter.correct(rotated_gps_pos_k, z_abs, z_rel, R);
     
     % 추정된 상태 저장
     ls_position(:, k) = ref_pos2 - ref_pos;
     estimated_states(:, k) = kalman_filter.state;
 end
+
+
 
 
 %% 3D RMS Error 계산

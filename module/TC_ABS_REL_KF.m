@@ -3,18 +3,23 @@ classdef TC_ABS_REL_KF
         state   % 현재 상태 추정
         covariance   % 현재 공분산 행렬
         A
+        u
+        use_external_force
     end
     
     methods
         % 생성자 메서드
-        function obj = TC_ABS_REL_KF(initialState, initialCovariance)
+        function obj = TC_ABS_REL_KF(initialState, initialCovariance, use_external_force)
             obj.state = initialState;
             obj.covariance = initialCovariance;
             obj.A = [];
+            obj.u = [];
+            obj.use_external_force = use_external_force;
         end
 
         function obj = update_A(obj, dt)
             % 3x3 단위 행렬
+
             I3 = eye(3);
             
             % 상태 전이 행렬 초기화 (16x16)
@@ -43,12 +48,33 @@ classdef TC_ABS_REL_KF
             obj.A = F;
         end
         
+        function obj = update_u(obj, dt)
+            a_1 = Gravity_ECEF(obj.state(1:3, 1));
+            a_2 = Gravity_ECEF(obj.state(9:11, 1));
+
+            u_temp = zeros(16, 1);
+
+            u_temp(1:3, 1) = 1/2 * a_1 * dt^2;
+            u_temp(4:6, 1) = a_1 * dt;
+
+            u_temp(9:11, 1) = 1/2 * (a_1 - a_2) * dt^2;
+            u_temp(12:14) = (a_1 - a_2) * dt;
+
+            obj.u = u_temp;
+        end
+
+
         % Prediction 메서드
         function obj = predict(obj, Q, dt)
             obj = obj.update_A(dt);
-
-
+           
+            obj = obj.update_u(dt)
+            
             obj.state = obj.A * obj.state;
+            if obj.use_external_force
+                obj.state = obj.state + obj.u;
+            end
+
             % 공분산 예측
             obj.covariance = obj.A * obj.covariance * obj.A' + Q;
         end
@@ -135,5 +161,27 @@ function H = compute_H_relative(sv_pos, x)
         H(i, 1:3) = - sv_1_to_sat' / sv_1_to_sat_norm + sv_2_to_sat' / sv_2_to_sat_norm;
         H(i, 9:11) = + sv_2_to_sat' / sv_2_to_sat_norm;
         H(i, 15) = 1; % Clock bias term
+    end
+end
+
+function y_hat = h_range(sv_pos, x)
+    y_hat = zeros(size(sv_pos, 2), 1);
+    
+    for i = 1:size(sv_pos, 2)
+        y_hat(i, 1) = norm(x(9:11, 1));
+    end
+end
+
+function H = compute_H_range(sv_pos, x)
+    % x: State vector (8x1) [Delta x; Delta y; Delta z; Delta vx; Delta vy; Delta vz; b; b_dot]
+    % z: Matrix of pesudorange with respect to Satellite A (mx2)
+    % sv_pos: Matrix of sv pos with in ecef frame (mx3)
+    % Returns H: Measurement matrix (mx8)
+    
+    m = size(sv_pos, 2); % Number of satellites
+    H = zeros(m, 16); % Initialize H matrix
+   
+    for i = 1:m
+        H(i, 9:11) =  x(9:11, 1) / norm(x(9:11, 1));
     end
 end
