@@ -67,8 +67,7 @@ classdef TC_ABS_REL_KF
         % Prediction 메서드
         function obj = predict(obj, Q, dt)
             obj = obj.update_A(dt);
-           
-            obj = obj.update_u(dt)
+            obj = obj.update_u(dt);
             
             obj.state = obj.A * obj.state;
             if obj.use_external_force
@@ -80,20 +79,21 @@ classdef TC_ABS_REL_KF
         end
         
         % Correction 메서드
-        function obj = correct(obj, sv_pos, z_abs, z_rel, R)
+        function obj = correct(obj, sv_pos, z_abs, z_rel, z_range, R)
             H_abs = compute_H_absolute(sv_pos, obj.state);
             H_rel = compute_H_relative(sv_pos, obj.state);
+            H_range = compute_H_range(sv_pos, obj.state);
 
-            H = [H_abs; H_rel];
+            H = [H_abs; H_rel; H_range];
             
             y_abs = h_absolute(sv_pos, obj.state);
             y_rel = h_relative(sv_pos, obj.state);
+            y_range = h_range(sv_pos, obj.state);
 
-            z_hat = [y_abs; y_rel];
-            z = [z_abs; z_rel];
+            z_hat = [y_abs; y_rel; y_range];
+            z = [z_abs; z_rel; z_range];
 
             %%
-
 
             % 칼만 이득 계산
             K = obj.covariance * H' * inv(H * obj.covariance * H' + R);
@@ -165,9 +165,10 @@ function H = compute_H_relative(sv_pos, x)
 end
 
 function y_hat = h_range(sv_pos, x)
-    y_hat = zeros(size(sv_pos, 2), 1);
+    m = 2; % Number of satellites
+    y_hat = zeros(m, 1);
     
-    for i = 1:size(sv_pos, 2)
+    for i = 1:m
         y_hat(i, 1) = norm(x(9:11, 1));
     end
 end
@@ -178,7 +179,7 @@ function H = compute_H_range(sv_pos, x)
     % sv_pos: Matrix of sv pos with in ecef frame (mx3)
     % Returns H: Measurement matrix (mx8)
     
-    m = size(sv_pos, 2); % Number of satellites
+    m = 2; % Number of satellites
     H = zeros(m, 16); % Initialize H matrix
    
     for i = 1:m

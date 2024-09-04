@@ -1,4 +1,4 @@
-function dataset = make_dataset(num_samples, sigma)
+function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
     start_time = datetime(2024, 8, 29, 0, 0, 0);
     stop_time = start_time + seconds(num_samples);
     
@@ -17,13 +17,14 @@ function dataset = make_dataset(num_samples, sigma)
 
     target_prn = 1:31;
 
-    measurements = zeros(length(target_prn), 2, num_samples);
+    pr_mes = zeros(length(target_prn), 2, num_samples);
+    range_mes = zeros(2, 1, num_samples);
     position_sv= zeros(length(target_prn), 3, num_samples);
     for i = 1:num_samples
-        % pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
-        % pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
-        pos1 = [-3.119992580788137e+06, 4.086868171897103e+06, 3.761594895585738e+06]';
-        pos2 = [-3.000992580788137e+06, 4.000868171897103e+06, 3.000594895585738e+06]';
+        pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
+        pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
+        % pos1 = [-3.119992580788137e+06, 4.086868171897103e+06, 3.761594895585738e+06]';
+        % pos2 = [-3.000992580788137e+06, 4.000868171897103e+06, 3.000594895585738e+06]';
         idx = 1;
 
 
@@ -32,8 +33,11 @@ function dataset = make_dataset(num_samples, sigma)
             if ismember(j, target_prn)
                 rotated_pos_gps = rotate_gps_backward(pos_gps(:, 1, j), pos1);
 
-                measurements(idx, 1, i) = generate_pr(pos_gps(:, 1, j), pos1, sigma);
-                measurements(idx, 2, i) = generate_pr(pos_gps(:, 1, j), pos2, sigma);
+                pr_mes(idx, 1, i) = generate_pr(pos_gps(:, 1, j), pos1, sigma_pr);
+                pr_mes(idx, 2, i) = generate_pr(pos_gps(:, 1, j), pos2, sigma_pr);
+
+                range_mes(1, 1, i) = generate_range(pos1, pos2, sigma_range);
+                range_mes(2, 1, i) = generate_range(pos1, pos2, sigma_range);
 
                 position_sv(idx, :, i) = rotated_pos_gps;
                 idx = idx + 1;
@@ -46,23 +50,10 @@ function dataset = make_dataset(num_samples, sigma)
 
     dataset.sat1_positions = true_positions_sat1;
     dataset.sat2_positions = true_positions_sat2;
-    dataset.measurements = measurements;
+    dataset.pr_mes = pr_mes;
+    dataset.range_mes = range_mes;
     dataset.gps_positions = position_sv;
     dataset.times = times;
-end
-
-
-function rotated_cord = rotate_gps_forward(gps_pos, ref_pos)
-    c = 299792458; % Speed of light in m/s
-    omega = 7.292115E-5;  % Earth rotation rate in rad/s
-    
-    approx_range = norm(gps_pos - ref_pos);
-
-    C_forward = [1, omega * approx_range / c, 0;...
-         -omega * approx_range / c, 1, 0;...
-         0, 0, 1]';
-
-    rotated_cord = C_forward' * gps_pos;
 end
 
 
@@ -74,6 +65,14 @@ function pr = generate_pr(gps_pos, sat_pos, sigma)
     
     % Calculate the pseudorange
     pr = distance + noise;
+end
+
+function range = generate_range(pos1, pos2, sigma)
+    distance = norm(pos1 - pos2);
+
+    noise = sigma * randn;
+    
+    range = distance + noise;
 end
 
 
