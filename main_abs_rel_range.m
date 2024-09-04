@@ -1,5 +1,6 @@
 % Kalman Filter with 3D RMS Error Plot for both KF solution and Measurements
 addpath('./module');
+addpath('./helper');
 
 %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
 val_num = 16;
