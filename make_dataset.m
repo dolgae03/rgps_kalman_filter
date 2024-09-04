@@ -11,7 +11,7 @@ function dataset = make_dataset(num_samples, sigma)
     % v = satelliteScenarioViewer(sc,'ShowDetails',true);
     % play(sc);
 
-    times = start_time + seconds((0:num_samples-1));
+    times = start_time + seconds((1:num_samples));
     true_positions_sat1 = zeros(num_samples, 3);
     true_positions_sat2 = zeros(num_samples, 3);
 
@@ -20,21 +20,24 @@ function dataset = make_dataset(num_samples, sigma)
     measurements = zeros(length(target_prn), 2, num_samples);
     position_sv= zeros(length(target_prn), 3, num_samples);
     for i = 1:num_samples
-        % pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
-        % pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
-        pos1 = [-3.119992580788137e+06, 4.086868171897103e+06, 3.761594895585738e+06]';
-        pos2 = [-3.000992580788137e+06, 4.000868171897103e+06, 3.000594895585738e+06]';
+        pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
+        pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
         idx = 1;
 
         pos_gps = states(gps_sv, times(i), "CoordinateFrame", 'ecef');
+        tau = norm(pos_gps(:, 1, 1) - pos1) / 299792458;
+        
+        pos_gps_when_send_signal = states(gps_sv, times(i) - seconds(tau), "CoordinateFrame", 'ecef');
+
         for j = 1:31
             if ismember(j, target_prn)
-                rotated_pos_gps = rotate_gps(pos_gps(:, 1, j))
+                pr_mes(idx, 1, i) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos1, sigma_pr);
+                pr_mes(idx, 2, i) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos2, sigma_pr);
 
-                measurements(idx, 1, i) = generate_pr(rotated_pos_gps, pos1, sigma);
-                measurements(idx, 2, i) = generate_pr(rotated_pos_gps, pos2, sigma);
+                range_mes(1, 1, i) = generate_range(pos1, pos2, sigma_range);
+                range_mes(2, 1, i) = generate_range(pos1, pos2, sigma_range);
 
-                position_sv(idx, :, i) = pos_gps(:,:,j);
+                position_sv(idx, :, i) = pos_gps(:, 1, j);
                 idx = idx + 1;
             end
         end
