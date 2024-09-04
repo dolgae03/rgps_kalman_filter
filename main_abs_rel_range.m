@@ -5,18 +5,23 @@ addpath('./module');
 val_num = 16;
 
 init_x = zeros(val_num, 1); 
+init_x(9:11, 1) = [3; 3; 3];
+
+
 P = 1000 * eye(val_num);
 
 %% 시뮬레이션 데이터 추출
 num_iterations = 150; % 시간 단계 수
-sigma = 4;
+sigma_pr = 3;
+sigma_range = 0.001;
 convergence_idx = 50;
 
-dataset = make_dataset(num_iterations, sigma);
+dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
 true_position = (dataset.sat2_positions - dataset.sat1_positions)';
 
 % 데이터를 저장할 배열
-measurements = dataset.measurements;
+pr_mes = dataset.pr_mes;
+range_mes = dataset.range_mes;
 gps_pos = dataset.gps_positions;
 estimated_states = zeros(val_num, num_iterations);
 ls_position = zeros(4, num_iterations);
@@ -31,25 +36,32 @@ for k = 1:num_iterations
     kalman_filter = kalman_filter.predict(Q, 1);
     
     %% Correction 단계
-    R = 40 .* eye(size(measurements, 1) * 2);
+    measurement_size = size(pr_mes, 1);
+    range_mes_size = size(range_mes, 1);
+
+    R = zeros(measurement_size * 2 + range_mes_size);
+    R(1:measurement_size, 1:measurement_size) = 3 .* eye(measurement_size);
+    R(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = 7 .* eye(measurement_size);
+    R(2*measurement_size + 1 : end, 2*measurement_size + 1 : end) = 0.01.* eye(range_mes_size);
 
     % LS Measurement Update
-    mes = measurements(:, :, k);
+    mes = pr_mes(:, :, k);
     gps_pos_k = gps_pos(:, :, k)';
 
-    ref_pos = GNSS_LS(measurements(:, 1, k), length(mes), gps_pos_k);
-    ref_pos2 = GNSS_LS(measurements(:, 2, k),length(mes), gps_pos_k);
+    ref_pos = GNSS_LS(pr_mes(:, 1, k), length(mes), gps_pos_k);
+    ref_pos2 = GNSS_LS(pr_mes(:, 2, k),length(mes), gps_pos_k);
 
     % KF Measruement 처리
-    z_abs = measurements(:, 1, k);
-    z_rel = measurements(:, 1, k) - measurements(:, 2, k);
+    z_abs = pr_mes(:, 1, k);
+    z_rel = pr_mes(:, 1, k) - pr_mes(:, 2, k);
+    z_range = range_mes(:, 1, k);
 
     rotated_gps_pos_k = zeros(size(gps_pos_k));
     for j = 1:length(gps_pos_k)
         rotated_gps_pos_k(:,j) = rotate_gps_forward(gps_pos_k(:, j), ref_pos(1:3, 1));
     end
     
-    kalman_filter = kalman_filter.correct(rotated_gps_pos_k, z_abs, z_rel, R);
+    kalman_filter = kalman_filter.correct(rotated_gps_pos_k, z_abs, z_rel, z_range, R);
     
     % 추정된 상태 저장
     ls_position(:, k) = ref_pos2 - ref_pos;
