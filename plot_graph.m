@@ -18,7 +18,7 @@ for sigma_pr_dynamic = range
     end
     
     % 동적 값과 기본값을 이용한 함수 호출
-    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr_dynamic, sigma_range, r_sigma_pr, r_sigma_range, result_folder);
+    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr_dynamic, sigma_range, r_sigma_pr, r_sigma_range, result_folder, false);
     kf_error(:, idx) = kf_error_now;
     ls_error(:, idx) = ls_error_now;
     idx = idx + 1;
@@ -31,7 +31,8 @@ idx = 1;
 kf_error = [];
 ls_error = [];
 
-for sigma_range_dynamic = 0.01:0.01:0.1
+range = 0.01:0.01:0.1;
+for sigma_range_dynamic = range
     % 폴더 이름 생성
     result_folder = sprintf('./result/result_range');
     if ~exist(result_folder, 'dir')
@@ -39,7 +40,7 @@ for sigma_range_dynamic = 0.01:0.01:0.1
     end
     
     % 동적 값과 기본값을 이용한 함수 호출
-    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr, sigma_range_dynamic, r_sigma_pr, r_sigma_range, result_folder);
+    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr, sigma_range_dynamic, r_sigma_pr, r_sigma_range, result_folder, false);
     kf_error(:, idx) = kf_error_now;
     ls_error(:, idx) = ls_error_now;
     idx = idx + 1;
@@ -54,13 +55,14 @@ idx = 1;
 kf_error = [];
 ls_error = [];
 
-for r_sigma_pr_dynamic = 1:1:3
+range = 1:0.3:3;
+for r_sigma_pr_dynamic = range
     result_folder = sprintf('./result/result_r_sigma_pr');
     if ~exist(result_folder, 'dir')
         mkdir(result_folder);
     end
     
-    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr_dynamic, r_sigma_range, result_folder);
+    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr_dynamic, r_sigma_range, result_folder, false);
     kf_error(:, idx) = kf_error_now;
     ls_error(:, idx) = ls_error_now;
     idx = idx + 1;
@@ -73,14 +75,15 @@ idx = 1;
 kf_error = [];
 ls_error = [];
 
-for r_sigma_range_dynamic = 0.1:0.1:0.3
+range = 0.1:0.05:5;
+for r_sigma_range_dynamic = range
     % 폴더 이름 생성
     result_folder = sprintf('./result/result_r_sigma_range');
     if ~exist(result_folder, 'dir')
         mkdir(result_folder);
     end
     
-    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range_dynamic, result_folder);
+    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range_dynamic, result_folder, false);
     kf_error(:, idx) = kf_error_now;
     ls_error(:, idx) = ls_error_now;
     idx = idx + 1;

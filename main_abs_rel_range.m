@@ -1,5 +1,5 @@
 % Kalman Filter with 3D RMS Error Plot for both KF solution and Measurements
-function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range, folder_path)
+function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range, folder_path, visable)
     addpath('./module');
     addpath('./helper');
     
@@ -101,8 +101,32 @@ function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range
 
     txt_file_name = sprintf('result_%0.3f_%0.3f_%0.3f_%0.3f.txt', sigma_pr, sigma_range, r_sigma_pr, r_sigma_range);
     txt_file_path = fullfile(folder_path, txt_file_name);
+
+    % 최종 RMS error 계산 및 출력
+    fileID = fopen(txt_file_path, 'w');  % 'w' 모드는 파일에 쓰기
+
+    % 결과를 파일에 저장
+    fprintf(fileID, 'Final RMS error (KF) in X-axis: %.4f meters\n', sqrt(mean(error_x.^2)));
+    fprintf(fileID, 'Final RMS error (KF) in Y-axis: %.4f meters\n', sqrt(mean(error_y.^2)));
+    fprintf(fileID, 'Final RMS error (KF) in Z-axis: %.4f meters\n', sqrt(mean(error_z.^2)));
+    fprintf(fileID, 'Final RMS error (KF) in 3D: %.4f meters\n', sqrt(mean(error_3d.^2)));
+    
+    fprintf(fileID, 'Final RMS error (LS) in X-axis: %.4f meters\n', sqrt(mean(ls_error_x.^2)));
+    fprintf(fileID, 'Final RMS error (LS) in Y-axis: %.4f meters\n', sqrt(mean(ls_error_y.^2)));
+    fprintf(fileID, 'Final RMS error (LS) in Z-axis: %.4f meters\n', sqrt(mean(ls_error_z.^2)));
+    fprintf(fileID, 'Final RMS error (LS) in 3D: %.4f meters\n', sqrt(mean(ls_error_3d.^2)));
+
+    kf_error_vec = [sqrt(mean(error_x.^2)); sqrt(mean(error_y.^2)); sqrt(mean(error_z.^2)); sqrt(mean(error_3d.^2))];
+    ls_error_vec = [sqrt(mean(ls_error_x.^2)); sqrt(mean(ls_error_y.^2)); sqrt(mean(ls_error_z.^2)); sqrt(mean(ls_error_3d.^2))];
+    
+    % 파일 닫기
+    fclose(fileID);
     
     % 서브플롯 생성
+    if ~visable
+        return;
+    end
+
     fig = figure();  % 'Visible', 'off'로 설정하여 창을 띄우지 않음
     hold on;
     
@@ -150,24 +174,4 @@ function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range
     savefig(fig, fig_file_path);
 
     close(fig);
-    
-    % 최종 RMS error 계산 및 출력
-    fileID = fopen(txt_file_path, 'w');  % 'w' 모드는 파일에 쓰기
-
-    % 결과를 파일에 저장
-    fprintf(fileID, 'Final RMS error (KF) in X-axis: %.4f meters\n', sqrt(mean(error_x.^2)));
-    fprintf(fileID, 'Final RMS error (KF) in Y-axis: %.4f meters\n', sqrt(mean(error_y.^2)));
-    fprintf(fileID, 'Final RMS error (KF) in Z-axis: %.4f meters\n', sqrt(mean(error_z.^2)));
-    fprintf(fileID, 'Final RMS error (KF) in 3D: %.4f meters\n', sqrt(mean(error_3d.^2)));
-    
-    fprintf(fileID, 'Final RMS error (LS) in X-axis: %.4f meters\n', sqrt(mean(ls_error_x.^2)));
-    fprintf(fileID, 'Final RMS error (LS) in Y-axis: %.4f meters\n', sqrt(mean(ls_error_y.^2)));
-    fprintf(fileID, 'Final RMS error (LS) in Z-axis: %.4f meters\n', sqrt(mean(ls_error_z.^2)));
-    fprintf(fileID, 'Final RMS error (LS) in 3D: %.4f meters\n', sqrt(mean(ls_error_3d.^2)));
-
-    kf_error_vec = [sqrt(mean(error_x.^2)); sqrt(mean(error_y.^2)); sqrt(mean(error_z.^2)); sqrt(mean(error_3d.^2))];
-    ls_error_vec = [sqrt(mean(ls_error_x.^2)); sqrt(mean(ls_error_y.^2)); sqrt(mean(ls_error_z.^2)); sqrt(mean(ls_error_3d.^2))];
-    
-    % 파일 닫기
-    fclose(fileID);
 end
