@@ -13,16 +13,22 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
 
     times = start_time + seconds((1:num_samples));
     true_positions_sat1 = zeros(num_samples, 3);
+    true_velocity_sat1 = zeros(num_samples, 3);
+
     true_positions_sat2 = zeros(num_samples, 3);
+    true_velocity_sat2 = zeros(num_samples, 3);
 
-    target_prn = 1:31;
+    elevation_threshold = 0;
 
-    pr_mes = zeros(length(target_prn), 2, num_samples);
+    pr_mes = cell(2, num_samples);
     range_mes = zeros(2, 1, num_samples);
-    position_sv= zeros(length(target_prn), 3, num_samples);
+    position_sv = cell(1, num_samples);
     for i = 1:num_samples
         pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
         pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
+
+        vel1 = calculate_velocity(sv1, times(i));
+        vel2 = calculate_velocity(sv2, times(i));
         idx = 1;
 
         pos_gps = states(gps_sv, times(i), "CoordinateFrame", 'ecef');
@@ -31,24 +37,28 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
         pos_gps_when_send_signal = states(gps_sv, times(i) - seconds(tau), "CoordinateFrame", 'ecef');
 
         for j = 1:31
-            if ismember(j, target_prn)
-                pr_mes(idx, 1, i) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos1, sigma_pr);
-                pr_mes(idx, 2, i) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos2, sigma_pr);
+            if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold
+                pr_mes{1, i}(idx,1) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos1, sigma_pr);
+                pr_mes{2, i}(idx,1) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos2, sigma_pr);
 
-                range_mes(1, 1, i) = generate_range(pos1, pos2, sigma_range);
-                range_mes(2, 1, i) = generate_range(pos1, pos2, sigma_range);
-
-                position_sv(idx, :, i) = pos_gps(:, 1, j);
+                position_sv{1, i}(idx, :) = pos_gps(:, 1, j);
                 idx = idx + 1;
             end
         end
 
+        range_mes(1, 1, i) = generate_range(pos1, pos2, sigma_range);
+        range_mes(2, 1, i) = generate_range(pos1, pos2, sigma_range);
+
         true_positions_sat1(i, :) = pos1(1:3); % X, Y, Z coordinates
         true_positions_sat2(i, :) = pos2(1:3); % X, Y, Z coordinates
+        true_velocity_sat1(i, :) = vel1;
+        true_velocity_sat2(i, :) = vel2;
     end
 
     dataset.sat1_positions = true_positions_sat1;
     dataset.sat2_positions = true_positions_sat2;
+    dataset.sat1_velocity = true_velocity_sat1;
+    dataset.sat2_velocity = true_velocity_sat2;
     dataset.pr_mes = pr_mes;
     dataset.range_mes = range_mes;
     dataset.gps_positions = position_sv;
@@ -58,12 +68,14 @@ end
 
 function pr = generate_pr(gps_pos, sat_pos, sigma)
     distance = norm(gps_pos - sat_pos);
+
+    clock_bias = 3;
     
     % Generate Gaussian noise with mean 0 and standard deviation sigma
     noise = sigma * randn;
     
     % Calculate the pseudorange
-    pr = distance + noise;
+    pr = distance + noise + clock_bias;
 end
 
 function range = generate_range(pos1, pos2, sigma)
@@ -73,6 +85,17 @@ function range = generate_range(pos1, pos2, sigma)
     
     range = distance + noise;
 end
+
+function velocity = calculate_velocity(sv, time)
+    dt = 1e-1;
+    
+    pos_prev = states(sv, time - seconds(dt), 'CoordinateFrame', 'ecef');
+    pos_next = states(sv, time, 'CoordinateFrame', 'ecef');
+
+    velocity = pos_next - pos_prev / dt;
+end
+    
+
 
 
 
@@ -86,5 +109,4 @@ end
 
 function sv = get_gps_satellite(sceneario)
     sv = satellite(sceneario, './data/gpsalmanac.txt')
-
 end

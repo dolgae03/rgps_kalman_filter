@@ -1,62 +1,76 @@
 % Kalman Filter with 3D RMS Error Plot for both KF solution and Measurements
-function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range, folder_path, visable)
+function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range, folder_path, visable)
     addpath('./module');
     addpath('./helper');
     
     rng(42)
     
-    %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
-    val_num = 16;
-    
-    init_x = zeros(val_num, 1); 
-    init_x(9:11, 1) = [3; 3; 3];
-    
-    
-    P = 1000 * eye(val_num);
-    
     %% 시뮬레이션 데이터 추출
+    val_num = 16;
     num_iterations = 150; % 시간 단계 수
     convergence_idx = 50;
     
     dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
     true_position = (dataset.sat2_positions - dataset.sat1_positions)';
+    true_velocity = (dataset.sat2_velocity - dataset.sat1_velocity)';
     
     % 데이터를 저장할 배열
     pr_mes = dataset.pr_mes;
     range_mes = dataset.range_mes;
     gps_pos = dataset.gps_positions;
     estimated_states = zeros(val_num, num_iterations);
+    estimated_P = zeros(val_num, val_num,  num_iterations);
+    estimated_states_with_pr = zeros(val_num, num_iterations);
     ls_position = zeros(4, num_iterations);
+
+    
+
+    %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
+    init_x = zeros(val_num, 1);
+    init_x(1:3, 1) = dataset.sat1_positions(1, :)';
+    init_x(7, 1) = 3;
+
+    init_x(9:11, 1) = (dataset.sat2_positions(1, :) - dataset.sat1_positions(1, :))' ;
+
+    P = 200 * eye(val_num);
     
     %% Kalman Filter 정의
     kalman_filter = TC_ABS_REL_KF(init_x, P, false);
+    kalman_filter_without_range = TC_ABS_REL_KF(init_x, P, false);
     
     %% Simulatin 수행
     for k = 1:num_iterations
         %% Prediction 단계
-        Q = 1 * eye(val_num);
+        Q = 10 * eye(val_num);
         kalman_filter = kalman_filter.predict(Q, 1);
+        kalman_filter_without_range = kalman_filter_without_range.predict(Q, 1);
         
         %% Correction 단계
-        measurement_size = size(pr_mes, 1);
+        measurement_size = size(pr_mes{1, k}, 1);
         range_mes_size = size(range_mes, 1);
-    
+        
+        %% 전체 Kalman filter
         % Define Measurement Noise
         R = zeros(measurement_size * 2 + range_mes_size);
         R(1:measurement_size, 1:measurement_size) = r_sigma_pr .* eye(measurement_size);
         R(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * 2 .* eye(measurement_size);
         R(2*measurement_size + 1 : end, 2*measurement_size + 1 : end) = r_sigma_range .* eye(range_mes_size);
+
+        R_only_pr = zeros(measurement_size * 2);
+        R_only_pr(1:measurement_size, 1:measurement_size) = r_sigma_pr .* eye(measurement_size);
+        R_only_pr(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * 2 .* eye(measurement_size);
     
-        % LS Measurement Update
-        mes = pr_mes(:, :, k);
-        gps_pos_k = gps_pos(:, :, k)';
+        %% LS Measurement Update
+        mes1 = pr_mes{1, k};
+        mes2 = pr_mes{2, k};
+
+        gps_pos_k = gps_pos{1, k}';
+        ref_pos = GNSS_LS(mes1, length(mes1), gps_pos_k);
+        ref_pos2 = GNSS_LS(mes2,length(mes2), gps_pos_k);
     
-        ref_pos = GNSS_LS(pr_mes(:, 1, k), length(mes), gps_pos_k);
-        ref_pos2 = GNSS_LS(pr_mes(:, 2, k),length(mes), gps_pos_k);
-    
-        % KF Measruement 처리
-        z_abs = pr_mes(:, 1, k);
-        z_rel = pr_mes(:, 1, k) - pr_mes(:, 2, k);
+        %% KF Measruement 처리
+        z_abs = mes1;
+        z_rel = mes1 - mes2;
         z_range = range_mes(:, 1, k);
     
         rotated_gps_pos_k = zeros(size(gps_pos_k));
@@ -64,30 +78,39 @@ function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range
             rotated_gps_pos_k(:,j) = rotate_gps_forward(gps_pos_k(:, j), ref_pos(1:3, 1));
         end
         
+        kalman_filter_without_range = kalman_filter_without_range.correct(rotated_gps_pos_k, z_abs, z_rel, [], R_only_pr);
         kalman_filter = kalman_filter.correct(rotated_gps_pos_k, z_abs, z_rel, z_range, R);
         
-        % 추정된 상태 저장
+        %% 현재 Kalman_filter
         ls_position(:, k) = ref_pos2 - ref_pos;
         estimated_states(:, k) = kalman_filter.state;
+        estimated_states_with_pr(:, k) = kalman_filter_without_range.state;
+        estimated_P(:, :, k) = kalman_filter.covariance;
     end
     
     
     
     
     %% 3D RMS Error 계산
+    time = convergence_idx:num_iterations;
     estimated_position = estimated_states(9:11, :);
     ls_position_rel = ls_position(1:3, :);
-    
-    % 결과 플로팅
-    time = convergence_idx:num_iterations;
     
     error_x = abs(true_position(1, convergence_idx:end) - estimated_position(1, convergence_idx:end));
     error_y = abs(true_position(2, convergence_idx:end) - estimated_position(2, convergence_idx:end));
     error_z = abs(true_position(3, convergence_idx:end) - estimated_position(3, convergence_idx:end));
 
     error_3d = sqrt(error_x.^2 + error_y.^2 + error_z.^2);
-    
-    % LS Position 에러 계산
+
+    %% kalman filter 에러 계산
+    estimated_position = estimated_states_with_pr(9:11, :);
+    error_x_with_pr = abs(true_position(1, convergence_idx:end) - estimated_position(1, convergence_idx:end));
+    error_y_with_pr = abs(true_position(2, convergence_idx:end) - estimated_position(2, convergence_idx:end));
+    error_z_with_pr = abs(true_position(3, convergence_idx:end) - estimated_position(3, convergence_idx:end));
+
+    error_3d_with_pr = sqrt(error_x_with_pr.^2 + error_y_with_pr.^2 + error_z_with_pr.^2);
+
+    %% LS Position 에러 계산
     ls_error_x = abs(true_position(1, convergence_idx:end) - ls_position_rel(1, convergence_idx:end));
     ls_error_y = abs(true_position(2, convergence_idx:end) - ls_position_rel(2, convergence_idx:end));
     ls_error_z = abs(true_position(3, convergence_idx:end) - ls_position_rel(3, convergence_idx:end));
@@ -96,14 +119,18 @@ function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range
     
     
     % SIGMA_PR 및 SIGMA_RANGE 변수를 파일 이름에 포함시키기 위한 문자열 생성
-    fig_file_name = sprintf('result_%0.3f_%0.3f_%0.3f_%0.3f.fig', sigma_pr, sigma_range, r_sigma_pr, r_sigma_range);
-    fig_file_path = fullfile(folder_path, fig_file_name);
+    fig_file_vel_path = fullfile(folder_path, ...
+                                sprintf('result_pos_%0.3f_%0.3f_%0.3f_%0.3f.fig', sigma_pr, sigma_range, r_sigma_pr, r_sigma_range));
+    fig_file_pos_path = fullfile(folder_path, ...
+                                sprintf('result_vel_%0.3f_%0.3f_%0.3f_%0.3f.fig', sigma_pr, sigma_range, r_sigma_pr, r_sigma_range));
 
-    txt_file_name = sprintf('result_%0.3f_%0.3f_%0.3f_%0.3f.txt', sigma_pr, sigma_range, r_sigma_pr, r_sigma_range);
-    txt_file_path = fullfile(folder_path, txt_file_name);
+    txt_file_vel_path = fullfile(folder_path, ...
+                                sprintf('result_vel_%0.3f_%0.3f_%0.3f_%0.3f.txt', sigma_pr, sigma_range, r_sigma_pr, r_sigma_range));
+    txt_file_pos_path = fullfile(folder_path, ...
+                                sprintf('result_pos_%0.3f_%0.3f_%0.3f_%0.3f.txt', sigma_pr, sigma_range, r_sigma_pr, r_sigma_range));
 
     % 최종 RMS error 계산 및 출력
-    fileID = fopen(txt_file_path, 'w');  % 'w' 모드는 파일에 쓰기
+    fileID = fopen(txt_file_pos_path, 'w');  % 'w' 모드는 파일에 쓰기
 
     % 결과를 파일에 저장
     fprintf(fileID, 'Final RMS error (KF) in X-axis: %.4f meters\n', sqrt(mean(error_x.^2)));
@@ -111,12 +138,18 @@ function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range
     fprintf(fileID, 'Final RMS error (KF) in Z-axis: %.4f meters\n', sqrt(mean(error_z.^2)));
     fprintf(fileID, 'Final RMS error (KF) in 3D: %.4f meters\n', sqrt(mean(error_3d.^2)));
     
+    fprintf(fileID, 'Final RMS error (KF without range) in X-axis: %.4f meters\n', sqrt(mean(error_x_with_pr.^2)));
+    fprintf(fileID, 'Final RMS error (KF without range) in Y-axis: %.4f meters\n', sqrt(mean(error_y_with_pr.^2)));
+    fprintf(fileID, 'Final RMS error (KF without range) in Z-axis: %.4f meters\n', sqrt(mean(error_z_with_pr.^2)));
+    fprintf(fileID, 'Final RMS error (KF without range) in 3D: %.4f meters\n', sqrt(mean(error_3d_with_pr.^2)));
+
     fprintf(fileID, 'Final RMS error (LS) in X-axis: %.4f meters\n', sqrt(mean(ls_error_x.^2)));
     fprintf(fileID, 'Final RMS error (LS) in Y-axis: %.4f meters\n', sqrt(mean(ls_error_y.^2)));
     fprintf(fileID, 'Final RMS error (LS) in Z-axis: %.4f meters\n', sqrt(mean(ls_error_z.^2)));
     fprintf(fileID, 'Final RMS error (LS) in 3D: %.4f meters\n', sqrt(mean(ls_error_3d.^2)));
 
     kf_error_vec = [sqrt(mean(error_x.^2)); sqrt(mean(error_y.^2)); sqrt(mean(error_z.^2)); sqrt(mean(error_3d.^2))];
+    kf_error_with_pr_vec = [sqrt(mean(error_x_with_pr.^2)); sqrt(mean(error_y_with_pr.^2)); sqrt(mean(error_z_with_pr.^2)); sqrt(mean(error_3d_with_pr.^2))];
     ls_error_vec = [sqrt(mean(ls_error_x.^2)); sqrt(mean(ls_error_y.^2)); sqrt(mean(ls_error_z.^2)); sqrt(mean(ls_error_3d.^2))];
     
     % 파일 닫기
@@ -131,47 +164,213 @@ function [kf_error_vec, ls_error_vec] = main_abs_rel_range(sigma_pr, sigma_range
     hold on;
     
     subplot(4,1,1);
-    plot(time, error_x, '-r', 'LineWidth', 2);
+    plot(time, error_x, '-r', 'LineWidth', 1);
     hold on;
-    plot(time, ls_error_x, '--r', 'LineWidth', 2);
-    legend('KF X-axis Error', 'LS X-axis Error');
+    plot(time, error_x_with_pr, '-g', 'LineWidth', 1);
+    hold on;
+    plot(time, ls_error_x, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range','LS');
     title('X-axis Error over Time');
     xlabel('Time step');
     ylabel('Error (meters)');
     grid on;
     
     subplot(4,1,2);
-    plot(time, error_y, '-g', 'LineWidth', 2);
+    plot(time, error_y, '-r', 'LineWidth', 1);
     hold on;
-    plot(time, ls_error_y, '--g', 'LineWidth', 2);
-    legend('KF Y-axis Error', 'LS Y-axis Error');
+    plot(time, error_y_with_pr, '-g', 'LineWidth', 1);
+    hold on;
+    plot(time, ls_error_y, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range','LS');
     title('Y-axis Error over Time');
     xlabel('Time step');
     ylabel('Error (meters)');
     grid on;
     
     subplot(4,1,3);
-    plot(time, error_z, '-b', 'LineWidth', 2);
+    plot(time, error_z, '-r', 'LineWidth', 1);
     hold on;
-    plot(time, ls_error_z, '--b', 'LineWidth', 2);
-    legend('KF Z-axis Error', 'LS Z-axis Error');
+    plot(time, error_z_with_pr, '-g', 'LineWidth', 1);
+    hold on;
+    plot(time, ls_error_z, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range','LS');
     title('Z-axis Error over Time');
     xlabel('Time step');
     ylabel('Error (meters)');
     grid on;
     
     subplot(4,1,4);
-    plot(time, error_3d, '-k', 'LineWidth', 2);
+    plot(time, error_3d, '-r', 'LineWidth', 1);
     hold on;
-    plot(time, ls_error_3d, '--k', 'LineWidth', 2);
-    legend('KF 3D Error', 'LS 3D Error');
+    plot(time, error_3d_with_pr, '-g', 'LineWidth', 1);
+    hold on;
+    plot(time, ls_error_3d, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range','LS');
     title('3D Error over Time');
     xlabel('Time step');
     ylabel('Error (meters)');
     grid on;
     
     % FIG 파일 저장
-    savefig(fig, fig_file_path);
+    savefig(fig, fig_file_pos_path);
 
-    close(fig);
+
+    %% Velocity error calculation
+    % Extract velocity estimates
+    estimated_velocity = estimated_states(4:6, :);  % Assuming velocity is in rows 4 to 6
+    estimated_velocity_with_pr = estimated_states_with_pr(4:6, :);  % Velocity for KF without range
+    % ls_velocity_rel = ls_velocity(1:3, :);  % LS estimated velocity
+    
+    % Calculate velocity errors
+    error_vx = abs(true_velocity(1, convergence_idx:end) - estimated_velocity(1, convergence_idx:end));
+    error_vy = abs(true_velocity(2, convergence_idx:end) - estimated_velocity(2, convergence_idx:end));
+    error_vz = abs(true_velocity(3, convergence_idx:end) - estimated_velocity(3, convergence_idx:end));
+    
+    error_v_3d = sqrt(error_vx.^2 + error_vy.^2 + error_vz.^2);
+    
+    error_vx_with_pr = abs(true_velocity(1, convergence_idx:end) - estimated_velocity_with_pr(1, convergence_idx:end));
+    error_vy_with_pr = abs(true_velocity(2, convergence_idx:end) - estimated_velocity_with_pr(2, convergence_idx:end));
+    error_vz_with_pr = abs(true_velocity(3, convergence_idx:end) - estimated_velocity_with_pr(3, convergence_idx:end));
+    
+    error_v_3d_with_pr = sqrt(error_vx_with_pr.^2 + error_vy_with_pr.^2 + error_vz_with_pr.^2);
+    
+    % % LS Velocity error
+    % ls_error_vx = abs(true_velocity(1, convergence_idx:end) - ls_velocity_rel(1, convergence_idx:end));
+    % ls_error_vy = abs(true_velocity(2, convergence_idx:end) - ls_velocity_rel(2, convergence_idx:end));
+    % ls_error_vz = abs(true_velocity(3, convergence_idx:end) - ls_velocity_rel(3, convergence_idx:end));
+    % 
+    % ls_error_v_3d = sqrt(ls_error_vx.^2 + ls_error_vy.^2 + ls_error_vz.^2);
+    
+    fileID = fopen(txt_file_vel_path, 'w');  % 'w' 모드는 파일에 쓰기
+
+    % Final RMS velocity error calculation
+    fprintf(fileID, 'Final RMS velocity error (KF) in X-axis: %.4f meters/sec\n', sqrt(mean(error_vx.^2)));
+    fprintf(fileID, 'Final RMS velocity error (KF) in Y-axis: %.4f meters/sec\n', sqrt(mean(error_vy.^2)));
+    fprintf(fileID, 'Final RMS velocity error (KF) in Z-axis: %.4f meters/sec\n', sqrt(mean(error_vz.^2)));
+    fprintf(fileID, 'Final RMS velocity error (KF) in 3D: %.4f meters/sec\n', sqrt(mean(error_v_3d.^2)));
+    
+    fprintf(fileID, 'Final RMS velocity error (KF without range) in X-axis: %.4f meters/sec\n', sqrt(mean(error_vx_with_pr.^2)));
+    fprintf(fileID, 'Final RMS velocity error (KF without range) in Y-axis: %.4f meters/sec\n', sqrt(mean(error_vy_with_pr.^2)));
+    fprintf(fileID, 'Final RMS velocity error (KF without range) in Z-axis: %.4f meters/sec\n', sqrt(mean(error_vz_with_pr.^2)));
+    fprintf(fileID, 'Final RMS velocity error (KF without range) in 3D: %.4f meters/sec\n', sqrt(mean(error_v_3d_with_pr.^2)));
+    
+    % fprintf(fileID, 'Final RMS velocity error (LS) in X-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vx.^2)));
+    % fprintf(fileID, 'Final RMS velocity error (LS) in Y-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vy.^2)));
+    % fprintf(fileID, 'Final RMS velocity error (LS) in Z-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vz.^2)));
+    % fprintf(fileID, 'Final RMS velocity error (LS) in 3D: %.4f meters/sec\n', sqrt(mean(ls_error_v_3d.^2)));
+
+    fclose(fileID);
+    
+    % Subplot for velocity error
+    fig1 = figure();
+    hold on;
+
+    subplot(4,1,1);
+    plot(time, error_vx, '-r', 'LineWidth', 1);
+    hold on;
+    plot(time, error_vx_with_pr, '-g', 'LineWidth', 1);
+    % plot(time, ls_error_vx, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range');
+    title('X-axis Velocity Error over Time');
+    xlabel('Time step');
+    ylabel('Error (m/s)');
+    grid on;
+    
+    subplot(4,1,2);
+    plot(time, error_vy, '-r', 'LineWidth', 1);
+    hold on;
+    plot(time, error_vy_with_pr, '-g', 'LineWidth', 1);
+    % plot(time, ls_error_vy, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range');
+    title('Y-axis Velocity Error over Time');
+    xlabel('Time step');
+    ylabel('Error (m/s)');
+    grid on;
+    
+    subplot(4,1,3);
+    plot(time, error_vz, '-r', 'LineWidth', 1);
+    hold on;
+    plot(time, error_vz_with_pr, '-g', 'LineWidth', 1);
+    % plot(time, ls_error_vz, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range');
+    title('Z-axis Velocity Error over Time');
+    xlabel('Time step');
+    ylabel('Error (m/s)');
+    grid on;
+    
+    subplot(4,1,4);
+    plot(time, error_v_3d, '-r', 'LineWidth', 1);
+    hold on;
+    plot(time, error_v_3d_with_pr, '-g', 'LineWidth', 1);
+    % plot(time, ls_error_v_3d, '-b', 'LineWidth', 1);
+    legend('EKF with range', 'EKF without range');
+    title('3D Velocity Error over Time');
+    xlabel('Time step');
+    ylabel('Error (m/s)');
+    grid on;
+    
+    % Save velocity error figure
+
+    savefig(fig1, fig_file_vel_path);
+
+    %% Draw P value of velocity
+    extract_P_xx = zeros(val_num, num_iterations);
+    for i = 1:length(estimated_P)
+        extract_P_xx(:, i) = diag(estimated_P(:, :, i));
+    end
+
+    draw_error(1:num_iterations, extract_P_xx);
+ 
+end
+
+
+function draw_error(time, xyz)
+    fig2 = figure();
+    hold on;
+
+    % 색상 배열 (각 성분에 대해 다른 색을 사용할 수 있도록)
+    styles = generate_styles;  % 필요에 따라 더 많은 색을 추가 가능
+
+    % xyz의 모든 성분을 for문으로 플롯
+    for i = 1:size(xyz, 1)
+        style = styles{mod(i-1, length(styles))+1};  % 스타일 순환 적용
+        plot(time, xyz(i, :), style, 'LineWidth', 1, 'DisplayName',sprintf('xyz(%d)', i));  % 스타일 적용하여 플롯
+        hold on;
+    end
+
+    legend(arrayfun(@(i) sprintf('xyz(%d)', i), 1:size(xyz, 1), 'UniformOutput', false));
+
+
+    % x, y축 라벨과 그리드 설정
+    xlabel('Time step');
+    ylabel('Covariance (sigma square)');
+    grid on;
+end
+
+
+function styles = generate_styles()
+    % 색상 배열
+    colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k'];  % 7개의 색상
+    
+    % 점 스타일 배열
+    markers = ['.', 'o', 'x', '+', '*', 's', 'd', 'v'];  % 8개의 점 스타일
+    
+    % 선 타입 배열
+    line_styles = {'-', '--', ':', '-.'};  % 4개의 선 타입
+    
+    % 16개의 조합을 저장할 셀 배열
+    styles = cell(1, 16);
+    
+    % 색상, 점 스타일, 선 타입을 조합하여 스타일 생성
+    idx = 1;
+    for i = 1:length(colors)
+        for k = 1:length(line_styles)
+            if idx > 16
+                break;  % 16개 조합을 초과하면 종료
+            end
+            % 색상, 선 타입, 점 스타일을 결합하여 스타일 생성
+            styles{idx} = [colors(i), line_styles{k}];
+            idx = idx + 1;
+        end
+    end
 end

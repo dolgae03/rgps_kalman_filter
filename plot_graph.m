@@ -9,7 +9,7 @@ idx = 1;
 kf_error = [];
 ls_error = [];
 
-range = 0.1:0.5:5;
+range = 4:5;
 for sigma_pr_dynamic = range
     % 폴더 이름 생성
     result_folder = sprintf('./result/result_by_pr');
@@ -18,7 +18,7 @@ for sigma_pr_dynamic = range
     end
     
     % 동적 값과 기본값을 이용한 함수 호출
-    [kf_error_now, ls_error_now] = main_abs_rel_range(sigma_pr_dynamic, sigma_range, r_sigma_pr, r_sigma_range, result_folder, false);
+    [kf_error_now, ls_error_now, kf_error_without_range_now] = main_abs_rel_range(sigma_pr_dynamic, sigma_range, r_sigma_pr, r_sigma_range, result_folder, true);
     kf_error(:, idx) = kf_error_now;
     ls_error(:, idx) = ls_error_now;
     idx = idx + 1;

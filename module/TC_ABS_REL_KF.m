@@ -50,7 +50,7 @@ classdef TC_ABS_REL_KF
         
         function obj = update_u(obj, dt)
             a_1 = Gravity_ECEF(obj.state(1:3, 1));
-            a_2 = Gravity_ECEF(obj.state(9:11, 1));
+            a_2 = Gravity_ECEF(obj.state(1:3, 1) + obj.state(9:11, 1));
 
             u_temp = zeros(16, 1);
 
@@ -80,15 +80,15 @@ classdef TC_ABS_REL_KF
         
         % Correction 메서드
         function obj = correct(obj, sv_pos, z_abs, z_rel, z_range, R)
-            H_abs = compute_H_absolute(sv_pos, obj.state);
-            H_rel = compute_H_relative(sv_pos, obj.state);
-            H_range = compute_H_range(sv_pos, obj.state);
+            H_abs = compute_H_absolute(sv_pos, obj.state, length(z_abs));
+            H_rel = compute_H_relative(sv_pos, obj.state, length(z_rel));
+            H_range = compute_H_range(sv_pos, obj.state, length(z_range));
 
             H = [H_abs; H_rel; H_range];
             
-            y_abs = h_absolute(sv_pos, obj.state);
-            y_rel = h_relative(sv_pos, obj.state);
-            y_range = h_range(sv_pos, obj.state);
+            y_abs = h_absolute(sv_pos, obj.state, length(z_abs));
+            y_rel = h_relative(sv_pos, obj.state, length(z_rel));
+            y_range = h_range(sv_pos, obj.state, length(z_range));
 
             z_hat = [y_abs; y_rel; y_range];
             z = [z_abs; z_rel; z_range];
@@ -106,35 +106,32 @@ classdef TC_ABS_REL_KF
 end
 
 
-function y_hat = h_absolute(sv_pos, x)
-    y_hat = zeros(size(sv_pos, 2), 1);
-    
-    
+function y_hat = h_absolute(sv_pos, x, num)
+    y_hat = zeros(num, 1);
     
     for i = 1:size(sv_pos, 2)
         y_hat(i, 1) = norm(sv_pos(:, i) - x(1:3, 1)) + x(7);
     end
 end
 
-function H = compute_H_absolute(sv_pos, x)
+function H = compute_H_absolute(sv_pos, x, num)
     % x: State vector (8x1) [Delta x; Delta y; Delta z; Delta vx; Delta vy; Delta vz; b; b_dot]
     % z: Matrix of pesudorange with respect to Satellite A (mx2)
     % sv_pos: Matrix of sv pos with in ecef frame (mx3)
     % Returns H: Measurement matrix (mx8)
     
-    m = size(sv_pos, 2); % Number of satellites
-    H = zeros(m, 16); % Initialize H matrix
+    H = zeros(num, 16); % Initialize H matrix
    
-    for i = 1:m
+    for i = 1:num
         H(i, 1:3) = (x(1:3, 1) - sv_pos(:, i))'/ norm(sv_pos(:, i) - x(1:3, 1));
         H(i, 7) = 1; % Clock bias term
     end
 end
 
-function y_hat = h_relative(sv_pos, x)
-    y_hat = zeros(size(sv_pos, 2), 1);
+function y_hat = h_relative(sv_pos, x, num)
+    y_hat = zeros(num, 1);
     
-    for i = 1:size(sv_pos, 2)
+    for i = 1:num
         sv_1_to_sat_norm = norm(sv_pos(:, i) - x(1:3, 1));
         sv_2_to_sat_norm = norm(sv_pos(:, i) - (x(1:3, 1) + x(9:11, 1)));
 
@@ -142,16 +139,15 @@ function y_hat = h_relative(sv_pos, x)
     end
 end
 
-function H = compute_H_relative(sv_pos, x)
+function H = compute_H_relative(sv_pos, x, num)
     % x: State vector (8x1) [Delta x; Delta y; Delta z; Delta vx; Delta vy; Delta vz; b; b_dot]
     % z: Matrix of pesudorange with respect to Satellite A (mx2)
     % sv_pos: Matrix of sv pos with in ecef frame (mx3)
     % Returns H: Measurement matrix (mx8)
     
-    m = size(sv_pos, 2); % Number of satellites
-    H = zeros(m, 16); % Initialize H matrix
+    H = zeros(num, 16); % Initialize H matrix
    
-    for i = 1:m
+    for i = 1:num
         sv_1_to_sat = sv_pos(:, i) - x(1:3, 1);
         sv_2_to_sat = sv_pos(:, i) - (x(1:3, 1) + x(9:11, 1));
 
@@ -164,25 +160,22 @@ function H = compute_H_relative(sv_pos, x)
     end
 end
 
-function y_hat = h_range(sv_pos, x)
-    m = 2; % Number of satellites
-    y_hat = zeros(m, 1);
+function y_hat = h_range(sv_pos, x, num)
+    y_hat = zeros(num, 1);
     
-    for i = 1:m
+    for i = 1:num
         y_hat(i, 1) = norm(x(9:11, 1));
     end
 end
 
-function H = compute_H_range(sv_pos, x)
+function H = compute_H_range(sv_pos, x, num)
     % x: State vector (8x1) [Delta x; Delta y; Delta z; Delta vx; Delta vy; Delta vz; b; b_dot]
     % z: Matrix of pesudorange with respect to Satellite A (mx2)
     % sv_pos: Matrix of sv pos with in ecef frame (mx3)
-    % Returns H: Measurement matrix (mx8)
-    
-    m = 2; % Number of satellites
-    H = zeros(m, 16); % Initialize H matrix
+    % Returns H: M
+    H = zeros(num, 16); % Initialize H matrix
    
-    for i = 1:m
+    for i = 1:num
         H(i, 9:11) =  x(9:11, 1) / norm(x(9:11, 1));
     end
 end
