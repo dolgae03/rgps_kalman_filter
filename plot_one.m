@@ -1,7 +1,7 @@
 % 초기 변수 설정 (기본값)
 clear;
 
-sigma_pr = 5;
+sigma_pr = 0;
 sigma_range = 0.001;
 r_sigma_pr = 8;
 r_sigma_range = 0.001;

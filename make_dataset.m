@@ -21,11 +21,15 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
     elevation_threshold = 0;
 
     pr_mes = cell(2, num_samples);
+    carrier_mes = cell(2, num_samples);
     range_mes = zeros(2, 1, num_samples);
     position_sv = cell(1, num_samples);
     for i = 1:num_samples
-        pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
-        pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
+        pos1 = states(sv1, times(1), 'CoordinateFrame', 'ecef');
+        pos2 = states(sv2, times(1), 'CoordinateFrame', 'ecef');
+        
+        % pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
+        % pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
 
         vel1 = calculate_velocity(sv1, times(i));
         vel2 = calculate_velocity(sv2, times(i));
@@ -40,6 +44,9 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
             if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold
                 pr_mes{1, i}(idx,1) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos1, sigma_pr);
                 pr_mes{2, i}(idx,1) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos2, sigma_pr);
+
+                carrier_mes{1, i}(idx,1) = generate_carrier(pos_gps_when_send_signal(:, 1, j), pos1, 0.02);
+                carrier_mes{2, i}(idx,1) = generate_carrier(pos_gps_when_send_signal(:, 1, j), pos2, 0.02);
 
                 position_sv{1, i}(idx, :) = pos_gps(:, 1, j);
                 idx = idx + 1;
@@ -61,15 +68,26 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
     dataset.sat2_velocity = true_velocity_sat2;
     dataset.pr_mes = pr_mes;
     dataset.range_mes = range_mes;
+    dataset.carrier_mes = carrier_mes;
     dataset.gps_positions = position_sv;
     dataset.times = times;
 end
 
+function pr = generate_carrier(gps_pos, sat_pos, sigma)
+    distance = norm(gps_pos - sat_pos);
+
+    % Generate Gaussian noise with mean 0 and standard deviation sigma
+    noise = sigma * randn;
+    N = 12315;
+    
+    % Calculate the pseudorange
+    pr = distance + noise;
+end
 
 function pr = generate_pr(gps_pos, sat_pos, sigma)
     distance = norm(gps_pos - sat_pos);
 
-    clock_bias = 3;
+    clock_bias = 0;
     
     % Generate Gaussian noise with mean 0 and standard deviation sigma
     noise = sigma * randn;
