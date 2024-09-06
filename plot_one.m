@@ -1,10 +1,12 @@
-% 초기 변수 설정 (기본값)
+%% 초기 변수 설정 (기본값)
 clear;
 
-sigma_pr = 0;
-sigma_range = 0.001;
-r_sigma_pr = 8;
-r_sigma_range = 0.001;
+sigma_pr = 5;
+sigma_range = 0.01;
+r_sigma_pr = 3;
+r_sigma_range = 0.01;
+
+%% 시뮬레이션
 
 result_folder = sprintf('./result/result_one');
 if ~exist(result_folder, 'dir')

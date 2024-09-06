@@ -31,10 +31,10 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
 
     %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
     init_x = zeros(val_num, 1);
-    init_x(1:3, 1) = dataset.sat1_positions(1, :)';
+    init_x(1:3, 1) = dataset.sat1_positions(1, :)' + [randn * 10; randn * 10; randn * 10];
     init_x(7, 1) = 3;
 
-    init_x(9:11, 1) = (dataset.sat2_positions(1, :) - dataset.sat1_positions(1, :))' ;
+    init_x(9:11, 1) = (dataset.sat2_positions(1, :) - dataset.sat1_positions(1, :))' + [randn * 10; randn * 10; randn * 10];
 
     P = 10 * eye(val_num);
     
@@ -45,13 +45,13 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     %% Simulatin 수행
     for k = 1:num_iterations
         %% Prediction 단계
-        % Q = 1e3 * eye(val_num);
-        % kalman_filter = kalman_filter.predict(Q, 1);
-        % kalman_filter_without_range = kalman_filter_without_range.predict(Q, 1);
-        % 
-        % curr_time(p_idx) = k;
-        % estimated_P(:, :, p_idx) = kalman_filter.covariance;
-        % p_idx = p_idx + 1;
+        Q = 1e4 * eye(val_num);
+        kalman_filter = kalman_filter.predict(Q, 1);
+        kalman_filter_without_range = kalman_filter_without_range.predict(Q, 1);
+
+        curr_time(p_idx) = k;
+        estimated_P(:, :, p_idx) = kalman_filter.covariance;
+        p_idx = p_idx + 1;
 
         
         %% Correction 단계
@@ -91,13 +91,15 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
         % z_tdcp = calculate_tdcp(kalman_filter.state(1:3, 1), kalman_filter.state(4:6, 1), 1, ...
         %                         carrier1_prev, gps_pos{1, k-1}', carrier1_curr, gps_pos_k);
     
-        rotated_gps_pos_k = zeros(size(gps_pos_k));
+        rotated_gps_pos_k_1 = zeros(size(gps_pos_k));
+        rotated_gps_pos_k_2 = zeros(size(gps_pos_k));
         for j = 1:length(gps_pos_k)
-            rotated_gps_pos_k(:,j) = rotate_gps_forward(gps_pos_k(:, j), ref_pos(1:3, 1));
+            rotated_gps_pos_k_1(:,j) = rotate_gps_forward(gps_pos_k(:, j), kalman_filter.state(1:3, 1));
+            rotated_gps_pos_k_2(:,j) = rotate_gps_forward(gps_pos_k(:, j), kalman_filter.state(1:3, 1) + kalman_filter.state(9:11, 1));
         end
         
-        kalman_filter_without_range = kalman_filter_without_range.correct(rotated_gps_pos_k, z_abs, z_rel, [], R_only_pr);
-        kalman_filter = kalman_filter.correct(rotated_gps_pos_k, z_abs, z_rel, z_range, R);
+        kalman_filter_without_range = kalman_filter_without_range.correct(rotated_gps_pos_k_1, rotated_gps_pos_k_2, z_abs, z_rel, [], R_only_pr);
+        kalman_filter = kalman_filter.correct(rotated_gps_pos_k_1, rotated_gps_pos_k_2, z_abs, z_rel, z_range, R);
         
         %% 현재 Kalman_filter
         ls_position(:, k) = ref_pos2 - ref_pos;
@@ -182,6 +184,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     end
 
     fig = figure(4);  % 'Visible', 'off'로 설정하여 창을 띄우지 않음
+    clf;
     hold on;
     
     subplot(4,1,1);
@@ -284,6 +287,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     
     % Subplot for velocity error
     fig1 = figure(1);
+    clf;
     hold on;
 
     subplot(4,1,1);
@@ -348,6 +352,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     estimated_states_norm = vecnorm(estimated_states(9:11, :), 2, 1);  % Compute the norm across time steps for estimated position
     
     fig = figure(2);
+    clf;
     plot(1:num_iterations, true_position_norm - estimated_states_norm, '-r', 'LineWidth', 1, 'DisplayName', 'true norm');  % Plot true norm
     % hold on;
     % % plot(1:num_iterations, estimated_states_norm, '-b', 'LineWidth', 1, 'DisplayName', 'estimated norm');  % Plot estimated norm
@@ -362,6 +367,7 @@ end
 
 function draw_error(time, xyz)
     fig2 = figure(3);
+    clf;
     hold on;
 
     % 색상 배열 (각 성분에 대해 다른 색을 사용할 수 있도록)

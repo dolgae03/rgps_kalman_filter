@@ -18,35 +18,35 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
     true_positions_sat2 = zeros(num_samples, 3);
     true_velocity_sat2 = zeros(num_samples, 3);
 
-    elevation_threshold = -190;
+    elevation_threshold = 0;
 
     pr_mes = cell(2, num_samples);
     carrier_mes = cell(2, num_samples);
     range_mes = zeros(2, 1, num_samples);
     position_sv = cell(1, num_samples);
+    
     for i = 1:num_samples
-        pos1 = states(sv1, times(1), 'CoordinateFrame', 'ecef');
-        pos2 = states(sv2, times(1), 'CoordinateFrame', 'ecef');
+        % pos1 = states(sv1, times(1), 'CoordinateFrame', 'ecef');
+        % pos2 = states(sv2, times(1), 'CoordinateFrame', 'ecef');
         
-        % pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
-        % pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
+        pos1 = states(sv1, times(i), 'CoordinateFrame', 'ecef');
+        pos2 = states(sv2, times(i), 'CoordinateFrame', 'ecef');
 
         vel1 = calculate_velocity(sv1, times(i));
         vel2 = calculate_velocity(sv2, times(i));
         idx = 1;
 
         pos_gps = states(gps_sv, times(i), "CoordinateFrame", 'ecef');
-        tau = norm(pos_gps(:, 1, 1) - pos1) / 299792458;
         
-        pos_gps_when_send_signal = states(gps_sv, times(i) - seconds(tau), "CoordinateFrame", 'ecef');
-
         for j = 1:31
             if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold
-                pr_mes{1, i}(idx,1) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos1, sigma_pr);
-                pr_mes{2, i}(idx,1) = generate_pr(pos_gps_when_send_signal(:, 1, j), pos2, sigma_pr);
+                pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, 1, j), pos1);
+                pr_mes{1, i}(idx,1) = generate_pr(pos_gps_when_send_signal, pos1, sigma_pr);
+                carrier_mes{1, i}(idx,1) = generate_carrier(pos_gps_when_send_signal, pos1, 0.02);
 
-                carrier_mes{1, i}(idx,1) = generate_carrier(pos_gps_when_send_signal(:, 1, j), pos1, 0.02);
-                carrier_mes{2, i}(idx,1) = generate_carrier(pos_gps_when_send_signal(:, 1, j), pos2, 0.02);
+                pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, 1, j), pos2);
+                pr_mes{2, i}(idx,1) = generate_pr(pos_gps_when_send_signal, pos2, sigma_pr);
+                carrier_mes{2, i}(idx,1) = generate_carrier(pos_gps_when_send_signal, pos2, 0.02);
 
                 position_sv{1, i}(idx, :) = pos_gps(:, 1, j);
                 idx = idx + 1;
@@ -87,7 +87,7 @@ end
 function pr = generate_pr(gps_pos, sat_pos, sigma)
     distance = norm(gps_pos - sat_pos);
 
-    clock_bias = 0;
+    clock_bias = 3;
     
     % Generate Gaussian noise with mean 0 and standard deviation sigma
     noise = sigma * randn;
@@ -108,6 +108,8 @@ function velocity = calculate_velocity(sv, time)
     dt = 1e-1;
     
     pos_prev = states(sv, time - seconds(dt), 'CoordinateFrame', 'ecef');
+
+    pos_prev = states(sv, time, 'CoordinateFrame', 'ecef');
     pos_next = states(sv, time, 'CoordinateFrame', 'ecef');
 
     velocity = pos_next - pos_prev / dt;
