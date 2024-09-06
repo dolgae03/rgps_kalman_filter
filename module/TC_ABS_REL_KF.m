@@ -75,13 +75,7 @@ classdef TC_ABS_REL_KF
             end
 
             % 공분산 예측
-            % obj.covariance = obj.A * obj.covariance * obj.A' + Q;
-
-            temp_cov = obj.covariance + eye(size(obj.covariance)) * 1e8;
-            temp_cov(7, 7) = obj.covariance(7, 7);
-            temp_cov(15, 15) = obj.covariance(15, 15);
-
-            obj.covariance = temp_cov;
+            obj.covariance = obj.A * obj.covariance * obj.A' + Q;
         end
         
         % Correction 메서드

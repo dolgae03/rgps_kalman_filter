@@ -3,7 +3,7 @@ clear;
 
 sigma_pr = 5;
 sigma_range = 0.01;
-r_sigma_pr = 3;
+r_sigma_pr = 5;
 r_sigma_range = 0.01;
 
 %% 시뮬레이션

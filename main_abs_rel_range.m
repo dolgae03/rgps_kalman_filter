@@ -8,8 +8,8 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     %% 시뮬레이션 데이터 추출
     val_num = 16;
 
-    num_iterations = 150; % 시간 단계 수
-    convergence_idx = 1;
+    num_iterations = 200; % 시간 단계 수
+    convergence_idx = 150;
     
     dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
     true_position = (dataset.sat2_positions - dataset.sat1_positions)';
@@ -30,28 +30,34 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     
 
     %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
+    inital_P_sigma = randn;
+
     init_x = zeros(val_num, 1);
-    init_x(1:3, 1) = dataset.sat1_positions(1, :)' + [randn * 10; randn * 10; randn * 10];
+    init_x(1:3, 1) = dataset.sat1_positions(1, :)' + [randn; randn; randn] .* inital_P_sigma;
     init_x(7, 1) = 3;
 
-    init_x(9:11, 1) = (dataset.sat2_positions(1, :) - dataset.sat1_positions(1, :))' + [randn * 10; randn * 10; randn * 10];
+    init_x(9:11, 1) = (dataset.sat2_positions(1, :) - dataset.sat1_positions(1, :))' +  [randn; randn; randn] .* inital_P_sigma;
 
     P = 10 * eye(val_num);
     
     %% Kalman Filter 정의
-    kalman_filter = TC_ABS_REL_KF(init_x, P, false);
-    kalman_filter_without_range = TC_ABS_REL_KF(init_x, P, false);
+    kalman_filter = TC_ABS_REL_KF(init_x, P, true);
+    kalman_filter_without_range = TC_ABS_REL_KF(init_x, P, true);
     
     %% Simulatin 수행
     for k = 1:num_iterations
         %% Prediction 단계
-        Q = 1e4 * eye(val_num);
-        kalman_filter = kalman_filter.predict(Q, 1);
-        kalman_filter_without_range = kalman_filter_without_range.predict(Q, 1);
-
-        curr_time(p_idx) = k;
-        estimated_P(:, :, p_idx) = kalman_filter.covariance;
-        p_idx = p_idx + 1;
+        
+        dt = 0.1;
+        for update_idx = 1:1/dt
+            Q = 1 * eye(val_num);
+            kalman_filter = kalman_filter.predict(Q, dt);
+            kalman_filter_without_range = kalman_filter_without_range.predict(Q, dt);
+    
+            curr_time(p_idx) = k + update_idx * dt;
+            estimated_P(:, :, p_idx) = kalman_filter.covariance;
+            p_idx = p_idx + 1;
+        end
 
         
         %% Correction 단계
@@ -106,7 +112,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
         estimated_states(:, k) = kalman_filter.state;
         estimated_states_with_pr(:, k) = kalman_filter_without_range.state;
 
-        curr_time(p_idx) = k;
+        curr_time(p_idx) = k+1;
         estimated_P(:, :, p_idx) = kalman_filter.covariance;
         p_idx = p_idx + 1;
     end
@@ -361,6 +367,21 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     ylabel('E (sigma square)');
     grid on;
     legend(); 
+
+    %% Draw clock bias of LS and KF
+
+    fig = figure(5);
+    clf;
+
+    plot(1:num_iterations, estimated_states(7, :), '-r', 'LineWidth', 1, 'DisplayName', 'clock bias KF');  % Plot true norm
+    hold on;
+    plot(1:num_iterations,estimated_states_with_pr(7, :), '-b', 'LineWidth', 1, 'DisplayName', 'clock bias KF with out range');  % Plot estimated norm
+     
+    xlabel('Time step');
+    ylabel('E (sigma square)');
+    grid on;
+    legend(); 
+
 
 end
 

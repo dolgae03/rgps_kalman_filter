@@ -108,8 +108,6 @@ function velocity = calculate_velocity(sv, time)
     dt = 1e-1;
     
     pos_prev = states(sv, time - seconds(dt), 'CoordinateFrame', 'ecef');
-
-    pos_prev = states(sv, time, 'CoordinateFrame', 'ecef');
     pos_next = states(sv, time, 'CoordinateFrame', 'ecef');
 
     velocity = pos_next - pos_prev / dt;
