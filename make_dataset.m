@@ -18,7 +18,7 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
     true_positions_sat2 = zeros(num_samples, 3);
     true_velocity_sat2 = zeros(num_samples, 3);
 
-    elevation_threshold = 0;
+    elevation_threshold = -190;
 
     pr_mes = cell(2, num_samples);
     carrier_mes = cell(2, num_samples);
