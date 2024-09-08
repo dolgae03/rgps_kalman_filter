@@ -12,8 +12,8 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     convergence_idx = 150;
     
     dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
-    true_position = (dataset.sat2_positions - dataset.sat1_positions)';
-    true_velocity = (dataset.sat2_velocity - dataset.sat1_velocity)';
+    true_position = (dataset.sat2_positions - dataset.sat1_positions);
+    true_velocity = (dataset.sat2_velocity - dataset.sat1_velocity);
     
     % 데이터를 저장할 배열
     p_idx = 1;
@@ -30,15 +30,18 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     
 
     %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
-    inital_P_sigma = randn;
+    inital_P_sigma = 10;
 
     init_x = zeros(val_num, 1);
-    init_x(1:3, 1) = dataset.sat1_positions(1, :)' + [randn; randn; randn] .* inital_P_sigma;
-    init_x(7, 1) = 3;
+    init_x(1:3, 1) = dataset.sat1_positions(:, 1) + [randn; randn; randn] .* inital_P_sigma;
+    init_x(4:6, 1) = dataset.sat1_velocity(:, 1) + [randn; randn; randn] .* inital_P_sigma;
+    init_x(7, 1) = 3 + randn * inital_P_sigma;
 
-    init_x(9:11, 1) = (dataset.sat2_positions(1, :) - dataset.sat1_positions(1, :))' +  [randn; randn; randn] .* inital_P_sigma;
+    init_x(9:11, 1) = (dataset.sat2_positions(:, 1) - dataset.sat1_positions(:, 1)) + [randn; randn; randn] .* inital_P_sigma;
+    init_x(12:14, 1) = dataset.sat2_velocity(:, 1) - dataset.sat1_velocity(:, 1)  + [randn; randn; randn] .* inital_P_sigma;
+    init_x(15, 1) = randn * inital_P_sigma;
 
-    P = 10 * eye(val_num);
+    P = inital_P_sigma * eye(val_num);
     
     %% Kalman Filter 정의
     kalman_filter = TC_ABS_REL_KF(init_x, P, true);
@@ -86,7 +89,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
         % carrier2_prev = carrier_mes{2, k-1};
         % carrier2_curr = carrier_mes{2, k};
           
-        gps_pos_k = gps_pos{1, k}';
+        gps_pos_k = gps_pos{1, k};
         ref_pos = GNSS_LS(mes1, length(mes1), gps_pos_k);
         ref_pos2 = GNSS_LS(mes2,length(mes2), gps_pos_k);
     
