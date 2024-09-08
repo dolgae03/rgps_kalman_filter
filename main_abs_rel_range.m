@@ -30,7 +30,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     
 
     %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
-    inital_P_sigma = 10;
+    inital_P_sigma = 100;
 
     init_x = zeros(val_num, 1);
     init_x(1:3, 1) = dataset.sat1_positions(:, 1) + [randn; randn; randn] .* inital_P_sigma;
@@ -44,16 +44,18 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     P = inital_P_sigma * eye(val_num);
     
     %% Kalman Filter 정의
-    kalman_filter = TC_ABS_REL_KF(init_x, P, true);
-    kalman_filter_without_range = TC_ABS_REL_KF(init_x, P, true);
+    use_external_force = false;
+    
+    kalman_filter = TC_ABS_REL_KF(init_x, P, use_external_force);
+    kalman_filter_without_range = TC_ABS_REL_KF(init_x, P, use_external_force);
     
     %% Simulatin 수행
     for k = 1:num_iterations
         %% Prediction 단계
         
-        dt = 0.1;
+        dt = 0.25;
         for update_idx = 1:1/dt
-            Q = 1 * eye(val_num);
+            Q = 0.1 * eye(val_num);
             kalman_filter = kalman_filter.predict(Q, dt);
             kalman_filter_without_range = kalman_filter_without_range.predict(Q, dt);
     
@@ -250,8 +252,8 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
 
     %% Velocity error calculation
     % Extract velocity estimates
-    estimated_velocity = estimated_states(4:6, :);  % Assuming velocity is in rows 4 to 6
-    estimated_velocity_with_pr = estimated_states_with_pr(4:6, :);  % Velocity for KF without range
+    estimated_velocity = estimated_states(12:14, :);  % Assuming velocity is in rows 4 to 6
+    estimated_velocity_with_pr = estimated_states_with_pr(12:14, :);  % Velocity for KF without range
     % ls_velocity_rel = ls_velocity(1:3, :);  % LS estimated velocity
     
     % Calculate velocity errors
