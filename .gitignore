@@ -1,2 +1,5 @@
 result/
+data/position_data
 *.asv
+*.zip
+.DS_Store
