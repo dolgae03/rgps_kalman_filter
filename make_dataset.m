@@ -1,5 +1,5 @@
 function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
-    start_time = datetime(2024, 8, 29, 0, 0, 0);
+    start_time = datetime(2024, 9, 8, 14, 30, 0);
 
     % Create the satellite scenario
     % v = satelliteScenarioViewer(sc,'ShowDetails',true);
@@ -101,7 +101,8 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(star
 
             % 각 GPS 위성에 대해 Elevation 각도 체크 후 위치 계산
             for j = 1:31
-                if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold
+                if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold ...
+                   && calculate_elevation(pos2, pos_gps(:, 1, j)) > elevation_threshold
            
                     % GPS 위성 위치 저장
                     gps_pos{1, i}(:, idx) = pos_gps(:, 1, j);
@@ -163,5 +164,5 @@ function [sv1, sv2] = get_virtual_satellite(scenario)
 end
 
 function sv = get_gps_satellite(sceneario)
-    sv = satellite(sceneario, './data/gpsalmanac.txt')
+    sv = satellite(sceneario, './data/gpsalmanac.txt');
 end

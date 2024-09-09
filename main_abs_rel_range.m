@@ -9,7 +9,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     val_num = 16;
 
     num_iterations = 200; % 시간 단계 수
-    convergence_idx = 150;
+    convergence_idx = 15;
     
     dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
     true_position = (dataset.sat2_positions - dataset.sat1_positions);
@@ -30,7 +30,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     
 
     %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
-    inital_P_sigma = 100;
+    inital_P_sigma = 20;
 
     init_x = zeros(val_num, 1);
     init_x(1:3, 1) = dataset.sat1_positions(:, 1) + [randn; randn; randn] .* inital_P_sigma;
@@ -53,11 +53,13 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     for k = 1:num_iterations
         %% Prediction 단계
         
-        dt = 0.25;
+        dt = 1;
         for update_idx = 1:1/dt
-            Q = 0.1 * eye(val_num);
-            kalman_filter = kalman_filter.predict(Q, dt);
-            kalman_filter_without_range = kalman_filter_without_range.predict(Q, dt);
+            Q = 0.5 * eye(val_num);
+            kalman_filter = kalman_filter.predict(Q, 1);
+
+            Q_without_range = 3 * eye(val_num);
+            kalman_filter_without_range = kalman_filter_without_range.predict(Q_without_range, dt);
     
             curr_time(p_idx) = k + update_idx * dt;
             estimated_P(:, :, p_idx) = kalman_filter.covariance;
