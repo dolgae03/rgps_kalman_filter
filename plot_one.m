@@ -13,4 +13,4 @@ if ~exist(result_folder, 'dir')
     mkdir(result_folder);
 end
 
-[kf_error_now, ls_error_now, kf_error_without_range_now] = main_abs_rel_range(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range, result_folder, true);
+[kf_error_now, ls_error_now, kf_error_without_range_now] = main_abs_rel_range_for_ipnt(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range, result_folder, true);

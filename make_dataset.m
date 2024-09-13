@@ -1,4 +1,6 @@
 function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
+    rng(42)
+
     start_time = datetime(2024, 9, 8, 14, 30, 0);
 
     times = start_time + seconds((1:num_samples));
