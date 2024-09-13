@@ -57,8 +57,8 @@ classdef TC_ABS_REL_KF
             u_temp(1:3, 1) = 1/2 * a_1 * dt^2;
             u_temp(4:6, 1) = a_1 * dt;
 
-            u_temp(9:11, 1) = 1/2 * (a_1 - a_2) * dt^2;
-            u_temp(12:14) = (a_1 - a_2) * dt;
+            u_temp(9:11, 1) = 1/2 * (a_2 - a_1) * dt^2;
+            u_temp(12:14) = (a_2 - a_1) * dt;
 
             obj.u = u_temp;
         end

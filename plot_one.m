@@ -1,10 +1,10 @@
 %% 초기 변수 설정 (기본값)
 clear;
 
-sigma_pr = 5;
-sigma_range = 0.01;
-r_sigma_pr = 5;
-r_sigma_range = 0.01;
+sigma_pr = 0.4;
+sigma_range = 0.1;
+r_sigma_pr = 0.4;
+r_sigma_range = 0.1;
 
 %% 시뮬레이션
 

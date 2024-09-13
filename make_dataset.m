@@ -1,17 +1,13 @@
 function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
     start_time = datetime(2024, 9, 8, 14, 30, 0);
 
-    % Create the satellite scenario
-    % v = satelliteScenarioViewer(sc,'ShowDetails',true);
-    % play(sc);
-
     times = start_time + seconds((1:num_samples));
 
     pr_mes = cell(2, num_samples);
     carrier_mes = cell(2, num_samples);
     range_mes = zeros(2, 1, num_samples);
 
-    [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(start_time, num_samples);
+    [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablility] = make_position_data(start_time, num_samples);
     
     for i = 1:num_samples
         pos1 = sv1_pos(:, i);
@@ -40,10 +36,11 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
     dataset.range_mes = range_mes;
     dataset.carrier_mes = carrier_mes;
     dataset.gps_positions = gps_pos;
+    dataset.gps_visablity = gps_visablility;
     dataset.times = times;
 end
 
-function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(start_time, num_samples)
+function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_position_data(start_time, num_samples)
     % 파일 이름 생성
     folder_name = './data/position_data';
     if ~exist(folder_name, 'dir')
@@ -62,6 +59,7 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(star
         sv2_pos = loaded_data.sv2_pos;
         sv1_vel = loaded_data.sv1_vel;
         sv2_vel = loaded_data.sv2_vel;
+        gps_visablity = loaded_data.gps_visablity;
     else
         % 파일이 존재하지 않으면 데이터를 생성
         disp('파일이 존재하지 않습니다. 데이터를 생성합니다...');
@@ -69,7 +67,7 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(star
 
         % 위성 시나리오 생성
         sc = satelliteScenario(start_time, stop_time, num_samples, 'AutoSimulate', false);
-
+        
         % 가상 위성 1, 2를 얻음
         [sv1, sv2] = get_virtual_satellite(sc);
 
@@ -79,15 +77,20 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(star
         % 시뮬레이션 시간 계산
         times = start_time + seconds((1:num_samples));
 
+        v = satelliteScenarioViewer(sc,'ShowDetails',true);
+        play(sc);
+
+
         % 위성들의 위치 및 속도 데이터를 저장할 변수 초기화
         sv1_pos = zeros(3, num_samples);
         sv2_pos = zeros(3, num_samples);
         sv1_vel = zeros(3, num_samples);
         sv2_vel = zeros(3, num_samples);
         gps_pos = cell(1, num_samples); % GPS 위성 위치 저장
+        gps_visablity = zeros(3, num_samples);
 
         % Elevation Threshold
-        elevation_threshold = 0;
+        elevation_threshold = 10;
 
         for i = 1:num_samples
             % 각 시점에서 가상 위성 1과 2의 위치를 가져옴
@@ -101,12 +104,23 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(star
 
             % 각 GPS 위성에 대해 Elevation 각도 체크 후 위치 계산
             for j = 1:31
+                if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold
+                    gps_visablity(1, i) = gps_visablity(1, i)  + 1
+                end
+
+                if calculate_elevation(pos2, pos_gps(:, 1, j)) > elevation_threshold
+                    gps_visablity(2, i) = gps_visablity(2, i)  + 1
+                end
+              
+
                 if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold ...
                    && calculate_elevation(pos2, pos_gps(:, 1, j)) > elevation_threshold
            
                     % GPS 위성 위치 저장
                     gps_pos{1, i}(:, idx) = pos_gps(:, 1, j);
                     idx = idx + 1;
+
+                    gps_visablity(3, i) = gps_visablity(3, i)  + 1
                 end
             end
 
@@ -118,7 +132,7 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel] = make_position_data(star
         end
 
         % 데이터를 파일로 저장
-        save(file_name, 'gps_pos', 'sv1_pos', 'sv2_pos', 'sv1_vel', 'sv2_vel');
+        save(file_name, 'gps_pos', 'sv1_pos', 'sv2_pos', 'sv1_vel', 'sv2_vel', 'gps_visablity');
         disp(['데이터가 저장되었습니다: ' file_name]);
     end
 end

@@ -14,6 +14,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
     true_position = (dataset.sat2_positions - dataset.sat1_positions);
     true_velocity = (dataset.sat2_velocity - dataset.sat1_velocity);
+    gps_visable = zeros(3, num_iterations);
     
     % 데이터를 저장할 배열
     p_idx = 1;
@@ -22,6 +23,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     range_mes = dataset.range_mes;
     carrier_mes = dataset.carrier_mes;
     gps_pos = dataset.gps_positions;
+    gps_visable = dataset.gps_visablity;
     estimated_states = zeros(val_num, num_iterations);
     estimated_P = zeros(val_num, val_num,  num_iterations);
     estimated_states_with_pr = zeros(val_num, num_iterations);
@@ -44,7 +46,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     P = inital_P_sigma * eye(val_num);
     
     %% Kalman Filter 정의
-    use_external_force = false;
+    use_external_force = true;
     
     kalman_filter = TC_ABS_REL_KF(init_x, P, use_external_force);
     kalman_filter_without_range = TC_ABS_REL_KF(init_x, P, use_external_force);
@@ -208,6 +210,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     plot(time, ls_error_x, '-b', 'LineWidth', 1);
     legend('EKF with range', 'EKF without range','LS');
     title('X-axis Error over Time');
+    xlim([convergence_idx, num_iterations])
     xlabel('Time step');
     ylabel('Error (meters)');
     grid on;
@@ -220,6 +223,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     plot(time, ls_error_y, '-b', 'LineWidth', 1);
     legend('EKF with range', 'EKF without range','LS');
     title('Y-axis Error over Time');
+    xlim([convergence_idx, num_iterations])
     xlabel('Time step');
     ylabel('Error (meters)');
     grid on;
@@ -231,6 +235,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     hold on;
     plot(time, ls_error_z, '-b', 'LineWidth', 1);
     legend('EKF with range', 'EKF without range','LS');
+    xlim([convergence_idx, num_iterations])
     title('Z-axis Error over Time');
     xlabel('Time step');
     ylabel('Error (meters)');
@@ -244,6 +249,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     plot(time, ls_error_3d, '-b', 'LineWidth', 1);
     legend('EKF with range', 'EKF without range','LS');
     title('3D Error over Time');
+    xlim([convergence_idx, num_iterations])
     xlabel('Time step');
     ylabel('Error (meters)');
     grid on;
@@ -312,6 +318,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     title('X-axis Velocity Error over Time');
     xlabel('Time step');
     ylabel('Error (m/s)');
+    xlim([convergence_idx, num_iterations])
     grid on;
     
     subplot(4,1,2);
@@ -323,6 +330,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     title('Y-axis Velocity Error over Time');
     xlabel('Time step');
     ylabel('Error (m/s)');
+    xlim([convergence_idx, num_iterations])
     grid on;
     
     subplot(4,1,3);
@@ -334,6 +342,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     title('Z-axis Velocity Error over Time');
     xlabel('Time step');
     ylabel('Error (m/s)');
+    xlim([convergence_idx, num_iterations])
     grid on;
     
     subplot(4,1,4);
@@ -345,6 +354,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     title('3D Velocity Error over Time');
     xlabel('Time step');
     ylabel('Error (m/s)');
+    xlim([convergence_idx, num_iterations])
     grid on;
     
     % Save velocity error figure
@@ -388,6 +398,27 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     ylabel('E (sigma square)');
     grid on;
     legend(); 
+
+    %% GPS visable
+    figure(6);
+    clf;
+    
+    % 첫 번째 데이터 시리즈 (gps_visable의 첫 번째 행)
+    plot(1:num_iterations, gps_visable(1,:), '--r', 'LineWidth', 1, 'MarkerSize', 6, 'DisplayName', 'Data Point 1');  
+    hold on;
+    
+    % 두 번째 데이터 시리즈 (gps_visable의 두 번째 행)
+    plot(1:num_iterations, gps_visable(2,:), ':g', 'LineWidth', 1, 'MarkerSize', 6, 'DisplayName', 'Data Point 2');  
+    
+    % 세 번째 데이터 시리즈 (gps_visable의 세 번째 행)
+    plot(1:num_iterations, gps_visable(3,:), '-.b', 'LineWidth', 1, 'MarkerSize', 6, 'DisplayName', 'Data Point 3');  
+    
+    xlabel('Time step');
+    ylabel('Visible Satellite Number');
+    grid on;
+    legend();
+    hold off;
+
 
 
 end
