@@ -13,6 +13,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
 
     sigma_idx = 1;
     estimated_states = zeros(val_num, num_iterations, length(sigma_value));
+    estimated_P = zeros(val_num, val_num,  num_iterations, length(sigma_value));
 
     for i = sigma_value
         dataset = make_dataset(num_iterations, sigma_pr, i);
@@ -28,8 +29,10 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
         carrier_mes = dataset.carrier_mes;
         gps_pos = dataset.gps_positions;
         gps_visable = dataset.gps_visablity;
-        estimated_P = zeros(val_num, val_num,  num_iterations);
         estimated_states_with_pr = zeros(val_num, num_iterations);
+        estimated_P_with_pr = zeros(val_num, val_num,  num_iterations);
+        estimated_P_with_ls = zeros(4, 4, num_iterations);
+
         ls_position = zeros(4, num_iterations);
     
         
@@ -60,15 +63,15 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
             
             dt = 1;
             for update_idx = 1:1/dt
-                Q = 0.5 * eye(val_num);
+                Q = 5e-13 * eye(val_num);
                 kalman_filter = kalman_filter.predict(Q, 1);
     
-                Q_without_range = 3 * eye(val_num);
+                Q_without_range = 5e-13 * eye(val_num);
                 kalman_filter_without_range = kalman_filter_without_range.predict(Q_without_range, dt);
         
                 curr_time(p_idx) = k + update_idx * dt;
-                estimated_P(:, :, p_idx) = kalman_filter.covariance;
-                p_idx = p_idx + 1;
+                % estimated_P(:, :, , sigma_idx) = kalman_filter.covariance;
+                % p_idx = p_idx + 1;
             end
     
             
@@ -99,8 +102,12 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
             % carrier2_curr = carrier_mes{2, k};
               
             gps_pos_k = gps_pos{1, k};
-            ref_pos = GNSS_LS(mes1, length(mes1), gps_pos_k);
-            ref_pos2 = GNSS_LS(mes2,length(mes2), gps_pos_k);
+            [ref_pos, DOP1] = GNSS_LS(mes1, length(mes1), gps_pos_k);
+            [ref_pos2, DOP2] = GNSS_LS(mes2,length(mes2), gps_pos_k);
+
+            estimated_P_with_ls(:, :, k) = r_sigma_pr.^2 * (DOP1 + DOP2);
+
+
         
             %% KF Measruement 처리
             z_abs = mes1;
@@ -125,7 +132,8 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
             estimated_states_with_pr(:, k) = kalman_filter_without_range.state';
     
             curr_time(p_idx) = k+1;
-            estimated_P(:, :, p_idx) = kalman_filter.covariance;
+            estimated_P(:, :, p_idx, sigma_idx) = kalman_filter.covariance;
+            estimated_P_with_pr(:, :, p_idx) = kalman_filter_without_range.covariance;
             p_idx = p_idx + 1;
 
 
@@ -140,31 +148,27 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     time = convergence_idx:num_iterations;
     
     ls_position_rel = ls_position(1:3, :);
-    
 
-    for i=1:sigma_idx - 1
+    for i = 1:sigma_idx - 1
         estimated_position = estimated_states(9:11, :, i);
-        error_x(:,:,i) = abs(true_position(1, convergence_idx:end) - estimated_position(1, convergence_idx:end));
-        error_y(:,:,i) = abs(true_position(2, convergence_idx:end) - estimated_position(2, convergence_idx:end));
-        error_z(:,:,i) = abs(true_position(3, convergence_idx:end) - estimated_position(3, convergence_idx:end));
-
-        error_3d(:,:,i) = sqrt(error_x(:,:,i).^2 + error_y(:,:,i).^2 + error_z(:,:,i).^2);
+        error_x(:, i) = abs(sqrt(squeeze(estimated_P(9, 9, convergence_idx:end, i))));
+        error_y(:, i) = abs(sqrt(squeeze(estimated_P(10, 10, convergence_idx:end, i))));
+        error_z(:, i) = abs(sqrt(squeeze(estimated_P(11, 11, convergence_idx:end, i))));
+        
+        error_3d(:, i) = sqrt(error_x(:, i).^2 + error_y(:, i).^2 + error_z(:, i).^2);
     end
-
-
     
-    %% kalman filter 에러 계산
+    %% Kalman filter error calculation
     estimated_position = estimated_states_with_pr(9:11, :);
-    error_x_with_pr = abs(true_position(1, convergence_idx:end) - estimated_position(1, convergence_idx:end));
-    error_y_with_pr = abs(true_position(2, convergence_idx:end) - estimated_position(2, convergence_idx:end));
-    error_z_with_pr = abs(true_position(3, convergence_idx:end) - estimated_position(3, convergence_idx:end));
-
+    error_x_with_pr = abs(sqrt(squeeze(estimated_P_with_pr(9, 9, convergence_idx:end))));
+    error_y_with_pr = abs(sqrt(squeeze(estimated_P_with_pr(10, 10, convergence_idx:end))));
+    error_z_with_pr = abs(sqrt(squeeze(estimated_P_with_pr(11, 11, convergence_idx:end))));
+    
     error_3d_with_pr = sqrt(error_x_with_pr.^2 + error_y_with_pr.^2 + error_z_with_pr.^2);
-
     %% LS Position 에러 계산
-    ls_error_x = abs(true_position(1, convergence_idx:end) - ls_position_rel(1, convergence_idx:end));
-    ls_error_y = abs(true_position(2, convergence_idx:end) - ls_position_rel(2, convergence_idx:end));
-    ls_error_z = abs(true_position(3, convergence_idx:end) - ls_position_rel(3, convergence_idx:end));
+    ls_error_x = abs(sqrt(squeeze(estimated_P_with_ls(1, 1, convergence_idx:end))));
+    ls_error_y = abs(sqrt(squeeze(estimated_P_with_ls(2, 2, convergence_idx:end))));
+    ls_error_z = abs(sqrt(squeeze(estimated_P_with_ls(3, 3, convergence_idx:end))));
 
     ls_error_3d = sqrt(ls_error_x.^2 + ls_error_y.^2 + ls_error_z.^2);
     
@@ -185,12 +189,12 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
 
     % 결과를 파일에 저장
     for i=1:sigma_idx-1
-        fprintf('Final RMS error (KF) %f in X-axis: %.4f meters\n', sigma_value(i), sqrt(mean(error_x(:,:,i).^2)));
-        fprintf('Final RMS error (KF) %f in Y-axis: %.4f meters\n', sigma_value(i),  sqrt(mean(error_y(:,:,i).^2)));
-        fprintf('Final RMS error (KF) %f in Z-axis: %.4f meters\n', sigma_value(i),  sqrt(mean(error_z(:,:,i).^2)));
-        fprintf('Final RMS error (KF) %f in 3D: %.4f meters\n', sigma_value(i),  sqrt(mean(error_3d(:,:,i).^2)));
+        fprintf('Final RMS error (KF) %f in X-axis: %.4f meters\n', sigma_value(i), sqrt(mean(error_x(:,i).^2)));
+        fprintf('Final RMS error (KF) %f in Y-axis: %.4f meters\n', sigma_value(i),  sqrt(mean(error_y(:,i).^2)));
+        fprintf('Final RMS error (KF) %f in Z-axis: %.4f meters\n', sigma_value(i),  sqrt(mean(error_z(:,i).^2)));
+        fprintf('Final RMS error (KF) %f in 3D: %.4f meters\n', sigma_value(i),  sqrt(mean(error_3d(:,i).^2)));
     end
-    
+
     fprintf('Final RMS error (KF without range) in X-axis: %.4f meters\n', sqrt(mean(error_x_with_pr.^2)));
     fprintf('Final RMS error (KF without range) in Y-axis: %.4f meters\n', sqrt(mean(error_y_with_pr.^2)));
     fprintf('Final RMS error (KF without range) in Z-axis: %.4f meters\n', sqrt(mean(error_z_with_pr.^2)));
@@ -203,7 +207,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
 
     kf_error_vec = [sqrt(mean(error_x.^2)); sqrt(mean(error_y.^2)); sqrt(mean(error_z.^2)); sqrt(mean(error_3d.^2))];
     kf_error_with_pr_vec = [sqrt(mean(error_x_with_pr.^2)); sqrt(mean(error_y_with_pr.^2)); sqrt(mean(error_z_with_pr.^2)); sqrt(mean(error_3d_with_pr.^2))];
-    ls_error_vec = [sqrt(mean(ls_error_x.^2)); sqrt(mean(ls_error_y.^2)); sqrt(mean(ls_error_z.^2)); sqrt(mean(ls_error_3d.^2))];
+    % ls_error_vec = [sqrt(mean(ls_error_x.^2)); sqrt(mean(ls_error_y.^2)); sqrt(mean(ls_error_z.^2)); sqrt(mean(ls_error_3d.^2))];
     
     % 파일 닫기
     fclose(fileID);
@@ -224,12 +228,12 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     
     % 실제 플롯
     for i = 1:sigma_idx - 1
-        plot(time, error_3d(:, :, i), 'Color', colors(i, :), 'LineWidth', 1);  % 얇은 실제 선
+        plot(time, error_3d(:, i), 'Color', colors(i, :), 'LineWidth', 3);  % 얇은 실제 선
         hold on;
     end
     
-    plot(time, error_3d_with_pr, '-g', 'LineWidth', 1);  % 고정된 색상
-    plot(time, ls_error_3d, '-b', 'LineWidth', 1);
+    plot(time, error_3d_with_pr, '-g', 'LineWidth', 3);  % 고정된 색상
+    plot(time, ls_error_3d, '-b', 'LineWidth', 3);
     
     % 범례에 표시하기 위한 더 굵은 선 (실제 플롯에 영향 없음)
     for i = 1:sigma_idx - 1
@@ -251,9 +255,9 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     
     % 축과 라벨의 글꼴 크기 및 두께 설정
     set(gca, 'FontSize', 24);  % 축 글꼴 크기 및 두께 설정
-    xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
-    ylabel('Error (meters)', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
-    
+    xlabel('Time step (seconds)', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
+    ylabel('Standard Deviation (meters)', 'FontSize', 24, 'FontWeight', 'bold');
+    yticks(0.1:0.2:1.5);
     xlim([convergence_idx, num_iterations])
     grid on;
     % FIG 파일 저장
@@ -299,10 +303,10 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     fprintf(fileID, 'Final RMS velocity error (KF without range) in Z-axis: %.4f meters/sec\n', sqrt(mean(error_vz_with_pr.^2)));
     fprintf(fileID, 'Final RMS velocity error (KF without range) in 3D: %.4f meters/sec\n', sqrt(mean(error_v_3d_with_pr.^2)));
     
-    % fprintf(fileID, 'Final RMS velocity error (LS) in X-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vx.^2)));
-    % fprintf(fileID, 'Final RMS velocity error (LS) in Y-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vy.^2)));
-    % fprintf(fileID, 'Final RMS velocity error (LS) in Z-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vz.^2)));
-    % fprintf(fileID, 'Final RMS velocity error (LS) in 3D: %.4f meters/sec\n', sqrt(mean(ls_error_v_3d.^2)));
+    fprintf(fileID, 'Final RMS velocity error (LS) in X-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vx.^2)));
+    fprintf(fileID, 'Final RMS velocity error (LS) in Y-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vy.^2)));
+    fprintf(fileID, 'Final RMS velocity error (LS) in Z-axis: %.4f meters/sec\n', sqrt(mean(ls_error_vz.^2)));
+    fprintf(fileID, 'Final RMS velocity error (LS) in 3D: %.4f meters/sec\n', sqrt(mean(ls_error_v_3d.^2)));
 
     fclose(fileID);
     

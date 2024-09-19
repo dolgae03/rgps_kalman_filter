@@ -1,4 +1,4 @@
-function x_est = GNSS_LS(pr, N, sv_pos)
+function [x_est, DOP] = GNSS_LS(pr, N, sv_pos)
 %GNSS_LS_position_velocity - Calculates position, velocity, clock offset, 
 %and clock drift using unweighted iterated least squares. Separate
 %calculations are implemented for position and clock offset and for
@@ -78,5 +78,6 @@ while err > 1e-8
     
     % Set predictions to estimates for next iteration
     x_pred = x_est;
+    DOP = inv(G' * G);
     
 end % while
