@@ -9,7 +9,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     val_num = 16;
 
     num_iterations = 200; % 시간 단계 수
-    convergence_idx = 15;
+    convergence_idx = 50;
     
     dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
     true_position = (dataset.sat2_positions - dataset.sat1_positions);
@@ -57,10 +57,10 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
         
         dt = 1;
         for update_idx = 1:1/dt
-            Q = 0.5 * eye(val_num);
+            Q = 1 * eye(val_num);
             kalman_filter = kalman_filter.predict(Q, 1);
 
-            Q_without_range = 3 * eye(val_num);
+            Q_without_range = 1 * eye(val_num);
             kalman_filter_without_range = kalman_filter_without_range.predict(Q_without_range, dt);
     
             curr_time(p_idx) = k + update_idx * dt;
