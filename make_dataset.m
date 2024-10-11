@@ -15,13 +15,21 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
 
         pos_gps = gps_pos{i};
         for j = 1:size(pos_gps, 2)
-            pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, j), pos1);
-            pr_mes{1, i}(j,1) = generate_pr(pos_gps_when_send_signal, pos1, sigma_pr);
-            carrier_mes{1, i}(j,1) = generate_carrier(pos_gps_when_send_signal, pos1, 0.02);
+            if ~any(isnan(pos_gps(:, j)))
+                pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, j), pos1);
+                pr_mes{1, i}(j,1) = generate_pr(pos_gps_when_send_signal, pos1, sigma_pr);
+                carrier_mes{1, i}(j,1) = generate_carrier(pos_gps_when_send_signal, pos1, 0.02);
+    
+                pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, j), pos2);
+                pr_mes{2, i}(j,1) = generate_pr(pos_gps_when_send_signal, pos2, sigma_pr);
+                carrier_mes{2, i}(j,1) = generate_carrier(pos_gps_when_send_signal, pos2, 0.02);
+            else
+                pr_mes{1, i}(j,1) = nan;
+                carrier_mes{1, i}(j,1) = nan;
 
-            pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, j), pos2);
-            pr_mes{2, i}(j,1) = generate_pr(pos_gps_when_send_signal, pos2, sigma_pr);
-            carrier_mes{2, i}(j,1) = generate_carrier(pos_gps_when_send_signal, pos2, 0.02);
+                pr_mes{2, i}(j,1) = nan;
+                carrier_mes{2, i}(j,1) = nan;
+            end
         end
 
         range_mes(1, 1, i) = generate_range(pos1, pos2, sigma_range);
@@ -100,16 +108,14 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_pos
             % GPS 위성의 위치를 가져옴
             pos_gps = states(gps_sv, times(i), 'CoordinateFrame', 'ecef');
 
-            idx = 1;
-
             % 각 GPS 위성에 대해 Elevation 각도 체크 후 위치 계산
             for j = 1:31
                 if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold
-                    gps_visablity(1, i) = gps_visablity(1, i)  + 1
+                    gps_visablity(1, i) = gps_visablity(1, i)  + 1;
                 end
 
                 if calculate_elevation(pos2, pos_gps(:, 1, j)) > elevation_threshold
-                    gps_visablity(2, i) = gps_visablity(2, i)  + 1
+                    gps_visablity(2, i) = gps_visablity(2, i)  + 1;
                 end
               
 
@@ -117,10 +123,10 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_pos
                    && calculate_elevation(pos2, pos_gps(:, 1, j)) > elevation_threshold
            
                     % GPS 위성 위치 저장
-                    gps_pos{1, i}(:, idx) = pos_gps(:, 1, j);
-                    idx = idx + 1;
-
-                    gps_visablity(3, i) = gps_visablity(3, i)  + 1
+                    gps_pos{1, i}(:, j) = pos_gps(:, 1, j);
+                    gps_visablity(3, i) = gps_visablity(3, i)  + 1;
+                else
+                    gps_pos{1, i}(:, j) = [nan; nan; nan];
                 end
             end
 
@@ -138,14 +144,18 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_pos
 end
 
 function pr = generate_carrier(gps_pos, sat_pos, sigma)
-    distance = norm(gps_pos - sat_pos);
+    c = 299792458;           % Speed of light in m/s
+    f = 1575.42e6;
+    lambda =  c / f;
 
+    exact_integer = norm(gps_pos - sat_pos) / lambda;
+   
     % Generate Gaussian noise with mean 0 and standard deviation sigma
     noise = sigma * randn;
     N = 12315;
     
     % Calculate the pseudorange
-    pr = distance + noise;
+    pr = exact_integer + noise / lambda;
 end
 
 function pr = generate_pr(gps_pos, sat_pos, sigma)
