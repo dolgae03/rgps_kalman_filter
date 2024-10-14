@@ -9,7 +9,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     val_num = 16;
 
     num_iterations = 200; % 시간 단계 수
-    convergence_idx = 15;
+    convergence_idx = 0;
     
     dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
     true_position = (dataset.sat2_positions - dataset.sat1_positions);

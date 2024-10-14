@@ -7,7 +7,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     val_num = 16;
 
     num_iterations = 200; % 시간 단계 수
-    convergence_idx = 100;
+    convergence_idx = 5;
 
     sigma_value = [0.01, 0.1, 0.5];
 
@@ -63,10 +63,10 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
             
             dt = 1;
             for update_idx = 1:1/dt
-                Q = 5e-13 * eye(val_num);
+                Q = 5e-2 * eye(val_num);
                 kalman_filter = kalman_filter.predict(Q, 1);
     
-                Q_without_range = 5e-13 * eye(val_num);
+                Q_without_range = 5e-2 * eye(val_num);
                 kalman_filter_without_range = kalman_filter_without_range.predict(Q_without_range, dt);
         
                 curr_time(p_idx) = k + update_idx * dt;
@@ -83,14 +83,14 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
             %% 전체 Kalman filter
             % Define Measurement Noise
             R = zeros(measurement_size * 2 + range_mes_size);
-            R(1:measurement_size, 1:measurement_size) = r_sigma_pr .* eye(measurement_size);
-            R(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * 2 .* eye(measurement_size);
-            R(2*measurement_size + 1 : measurement_size * 2 + range_mes_size, 2*measurement_size + 1 : measurement_size * 2 + range_mes_size) = sigma_value(sigma_idx) .* eye(range_mes_size);
+            R(1:measurement_size, 1:measurement_size) = r_sigma_pr ./ 2 .* eye(measurement_size);
+            R(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr .* eye(measurement_size);
+            R(2*measurement_size + 1 : end, 2*measurement_size + 1 :end) = i .* eye(range_mes_size);
             % R(measurement_size * 2 + range_mes_size + 1 : end, measurement_size * 2 + range_mes_size + 1:end) = 5 * eye(3*2);
     
             R_only_pr = zeros(measurement_size * 2);
-            R_only_pr(1:measurement_size, 1:measurement_size) = r_sigma_pr .* eye(measurement_size);
-            R_only_pr(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * 2 .* eye(measurement_size);
+            R_only_pr(1:measurement_size, 1:measurement_size) = r_sigma_pr ./ 2 .* eye(measurement_size);
+            R_only_pr(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * eye(measurement_size);
         
             %% LS Measurement Update
             mes1 = pr_mes{1, k};
@@ -222,44 +222,83 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     fig = figure(4);  % 'Visible', 'off'로 설정하여 창을 띄우지 않음
     fig.Color = "white";
     hold on;
+
+    yyaxis left
     
     % 색상 맵 설정 (기본 'lines' 컬러 맵 사용)
     colors = lines(sigma_idx);  % sigma_idx 개의 다양한 색상 생성
+    line_styles = {'-', '--', ':', '-.'};  % 사용할 선 모양 리스트
     
     % 실제 플롯
     for i = 1:sigma_idx - 1
-        plot(time, error_3d(:, i), 'Color', colors(i, :), 'LineWidth', 3);  % 얇은 실제 선
+        plot(time, error_3d(:, i), 'Color', colors(i, :), 'LineWidth', 3, ...
+            'LineStyle', line_styles{mod(i-1, length(line_styles)) + 1}, 'Marker', 'none');  % 마커 없음
         hold on;
     end
     
-    plot(time, error_3d_with_pr, '-g', 'LineWidth', 3);  % 고정된 색상
-    plot(time, ls_error_3d, '-b', 'LineWidth', 3);
+    plot(time, error_3d_with_pr .* 2, '-r', 'LineWidth', 3, 'Marker', 'none');  % 고정된 색상, 마커 없음
+    plot(time, ls_error_3d .* 2, '-b', 'LineWidth', 3, 'Marker', 'none');  % 고정된 색상, 마커 없음
     
     % 범례에 표시하기 위한 더 굵은 선 (실제 플롯에 영향 없음)
     for i = 1:sigma_idx - 1
-        p(i) = plot(nan, nan, 'Color', colors(i, :), 'LineWidth', 3);  % 굵은 선을 범례에만 추가
+        p(i) = plot(nan, nan, 'Color', colors(i, :), 'LineWidth', 3, ...
+            'LineStyle', line_styles{mod(i-1, length(line_styles)) + 1}, 'Marker', 'none');  % 범례용으로 마커 없음
         hold on;
     end
     
-    p(end+1) = plot(nan, nan, '-g', 'LineWidth', 3);  % EKF-PR Only 굵은 선
-    p(end+1) = plot(nan, nan, '-b', 'LineWidth', 3);  % LS 굵은 선
+    % EKF-PR Only와 LS를 범례에 추가
+    p(sigma_idx) = plot(nan, nan, '-r', 'LineWidth', 3, 'Marker', 'none');  % EKF-PR Only
+    p(sigma_idx + 1) = plot(nan, nan, '-b', 'LineWidth', 3, 'Marker', 'none');  % LS
+
+
+    p(end+1) = plot(nan, nan, '-r', 'LineWidth', 2);  % EKF-PR Only 굵은 선
+    p(end+1) = plot(nan, nan, '-b', 'LineWidth', 2);  % LS 굵은 선
     
-    % 범례 문자열 생성 (sigma를 LaTeX 기호로 추가)
-    legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_value, 'UniformOutput', false);
-    legend_strings{end+1} = 'EKF-Pesudorange Only';
-    legend_strings{end+1} = 'LS';
-    
-    % 동적으로 생성된 legend 적용 및 위치 설정, LaTeX 해석을 사용
-    lgd = legend(p, legend_strings, 'Location', 'northwest', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
-    set(lgd, 'FontSize', 24, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
     
     % 축과 라벨의 글꼴 크기 및 두께 설정
     set(gca, 'FontSize', 24);  % 축 글꼴 크기 및 두께 설정
     xlabel('Time step (seconds)', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
     ylabel('Standard Deviation (meters)', 'FontSize', 24, 'FontWeight', 'bold');
-    yticks(0.1:0.2:1.5);
+    % yticks(0.1:0.2:1.5);
     xlim([convergence_idx, num_iterations])
     grid on;
+
+    %%
+    estimated_position = estimated_states_with_pr(9:11, :);
+    error_x_with_pr = abs(true_position(1, convergence_idx:end) - estimated_position(1, convergence_idx:end));
+    error_y_with_pr = abs(true_position(2, convergence_idx:end) - estimated_position(2, convergence_idx:end));
+    error_z_with_pr = abs(true_position(3, convergence_idx:end) - estimated_position(3, convergence_idx:end));
+
+    error_3d_with_pr = sqrt(error_x_with_pr.^2 + error_y_with_pr.^2 + error_z_with_pr.^2);
+
+    %% LS Position 에러 계산
+    ls_error_x = abs(true_position(1, convergence_idx:end) - ls_position_rel(1, convergence_idx:end));
+    ls_error_y = abs(true_position(2, convergence_idx:end) - ls_position_rel(2, convergence_idx:end));
+    ls_error_z = abs(true_position(3, convergence_idx:end) - ls_position_rel(3, convergence_idx:end));
+
+    ls_error_3d = sqrt(ls_error_x.^2 + ls_error_y.^2 + ls_error_z.^2);
+
+    yyaxis right
+
+    plot(time, error_3d_with_pr, '-r', 'LineWidth', 1);
+    hold on;
+    plot(time, ls_error_3d, '-b', 'LineWidth', 1);
+    % legend('EKF','LS');
+    xlim([convergence_idx, num_iterations])
+    xlabel('Time step');
+    ylabel('Error (meters)','FontWeight', 'bold');
+    grid on;
+    
+    legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_value, 'UniformOutput', false);
+    legend_strings{end+1} = 'EKF-Pseudorange Only';
+    legend_strings{end+1} = 'LS';
+    legend_strings{end+1} = 'EKF Error';
+    legend_strings{end+1} = 'LS Error';
+    
+    % 동적으로 생성된 범례 적용 및 위치 설정, LaTeX 해석을 사용
+    lgd = legend(p, legend_strings, 'Location', 'northwest', 'Interpreter', 'latex');
+    set(lgd, 'FontSize', 24, 'FontWeight', 'bold');
+
     % FIG 파일 저장
     savefig(fig, fig_file_pos_path);
 
