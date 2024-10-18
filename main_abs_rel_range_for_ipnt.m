@@ -280,9 +280,9 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
 
     yyaxis right
 
-    plot(time, error_3d_with_pr, '-r', 'LineWidth', 1);
+    % plot(time, error_3d_with_pr, '-r', 'LineWidth', 1);
     hold on;
-    plot(time, ls_error_3d, '-b', 'LineWidth', 1);
+    % plot(time, ls_error_3d, '-b', 'LineWidth', 1);
     % legend('EKF','LS');
     xlim([convergence_idx, num_iterations])
     xlabel('Time step');
@@ -292,8 +292,8 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_value, 'UniformOutput', false);
     legend_strings{end+1} = 'EKF-Pseudorange Only';
     legend_strings{end+1} = 'LS';
-    legend_strings{end+1} = 'EKF Error';
-    legend_strings{end+1} = 'LS Error';
+    % legend_strings{end+1} = 'EKF Error';
+    % legend_strings{end+1} = 'LS Error';
     
     % 동적으로 생성된 범례 적용 및 위치 설정, LaTeX 해석을 사용
     lgd = legend(p, legend_strings, 'Location', 'northwest', 'Interpreter', 'latex');
