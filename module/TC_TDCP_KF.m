@@ -6,6 +6,8 @@ classdef TC_TDCP_KF
         A
         u
         use_external_force
+        final_log
+        inital_log
     end
     
     methods
@@ -17,14 +19,13 @@ classdef TC_TDCP_KF
             obj.A = [];
             obj.u = [];
             obj.use_external_force = use_external_force;
+            obj.inital_log = [];
+            obj.final_log = [];
         end
 
         function obj = update_A(obj, dt)
-            % 3x3 단위 행렬
-
             I3 = eye(3);
             
-            % 상태 전이 행렬 초기화 (16x16)
             F = zeros(16, 16);
             
             % 절대 위치와 속도에 대한 부분
@@ -81,27 +82,19 @@ classdef TC_TDCP_KF
         end
         
         % Correction 메서드
-        function obj = correct(obj, sv_pos1, sv_pos2, z_abs, z_rel, z_range, z_tdcp_abs, z_tdcp_rel, R)
+        function obj = inital_correct(obj, sv_pos1, sv_pos2, z_abs, z_rel, z_range, R)
             H_abs = compute_H_absolute(sv_pos1, obj.state, length(z_abs));
             H_rel = compute_H_relative(sv_pos1, sv_pos2, obj.state, length(z_rel));
             H_range = compute_H_range(sv_pos1, obj.state, length(z_range));
-            H_tdcp_abs = compute_H_tdcp_abs(sv_pos1, obj.state, length(z_tdcp_abs));
-            H_tdcp_rel = compute_H_tdcp_rel(sv_pos1, sv_pos2, obj.state, length(z_tdcp_rel));
 
-            H = [H_abs; H_rel; H_range; H_tdcp_abs; H_tdcp_rel];
+            H = [H_abs; H_rel; H_range;];
 
             y_abs = h_absolute(sv_pos1, obj.state, length(z_abs));
             y_rel = h_relative(sv_pos1, sv_pos2, obj.state, length(z_rel));
             y_range = h_range(sv_pos1, obj.state, length(z_range));
-            y_tdcp_abs = h_tdcp_abs(sv_pos1, obj.state, length(z_tdcp_abs));
-            y_tdcp_rel = h_tdcp_rel(sv_pos1, sv_pos2, obj.state, length(z_tdcp_rel));
 
-            y_tdcp_abs - H_tdcp_abs * obj.state
-
-            z_hat = [y_abs; y_rel; y_range; y_tdcp_abs; y_tdcp_rel];
-            z = [z_abs; z_rel; z_range; z_tdcp_abs; z_tdcp_rel];
-
-            %%
+            z_hat = [y_abs; y_rel; y_range;];
+            z = [z_abs; z_rel; z_range;];
 
             % 칼만 이득 계산
             K = obj.covariance * H' * inv(H * obj.covariance * H' + R);
@@ -111,6 +104,59 @@ classdef TC_TDCP_KF
 
             obj.state = obj.state + K * (z - z_hat);
             obj.covariance = (eye(size(obj.covariance)) - K * H) * obj.covariance;
+
+            obj.inital_log(:, end+1) = obj.state;
+        end
+    
+           
+        function obj = final_correct(obj, z_pos, R)
+            H = compute_H_pos(obj.state, length(z_pos));
+            z_hat = h_pos(obj.state, length(z_pos));
+            z = z_pos;
+
+            % 칼만 이득 계산
+            K = obj.covariance * H' * inv(H * obj.covariance * H' + R);
+
+            % 상태 업데이트
+            obj.prev_state = obj.state;
+
+            obj.state = obj.state + K * (z - z_hat);
+            obj.covariance = (eye(size(obj.covariance)) - K * H) * obj.covariance;
+            
+            obj.final_log(:, end+1) = obj.state;
+        end
+
+        function [pos, cov] = get_relative_pos_info(obj)
+            % Extract position and orientation information from the state
+            pos = [obj.state(1:3) + obj.state(9:11); obj.state(7) + obj.state(15)];
+            
+            % Define indices for state vectors
+            pos_indices_1 = 1:3;    % First part of the position
+            pos_indices_2 = 9:11;   % Second part of the position
+            orient_indices_1 = 7;   % First part of the orientation
+            orient_indices_2 = 15;  % Second part of the orientation
+            
+            % Covariance for the position part
+            cov_pos_1 = obj.covariance(pos_indices_1, pos_indices_1);
+            cov_pos_2 = obj.covariance(pos_indices_2, pos_indices_2);
+        
+            cov_1_1 = cov_pos_1 + cov_pos_2;
+            
+            cov_pos_1 = obj.covariance(orient_indices_1, pos_indices_1);
+            cov_pos_2 = obj.covariance(orient_indices_2, pos_indices_2);
+            cov_1_2 = cov_pos_1 + cov_pos_2;
+        
+            cov_orient_1 = obj.covariance(orient_indices_1, orient_indices_1);
+            cov_orient_2 = obj.covariance(orient_indices_2, orient_indices_2);
+        
+            cov_2_2 = cov_orient_1 + cov_orient_2;
+
+            cov_pos_1 = obj.covariance(pos_indices_1, orient_indices_1);
+            cov_pos_2 = obj.covariance(pos_indices_2, orient_indices_2);
+            cov_2_1 = cov_pos_1 + cov_pos_2;
+        
+            cov = [cov_1_1, cov_2_1;
+                   cov_1_2, cov_2_2];
         end
     end
 end
@@ -190,49 +236,17 @@ function H = compute_H_range(sv_pos, x, num)
     end
 end
 
-
-function y_hat = h_tdcp_abs(sv_pos, x, num)
+function y_hat = h_pos(x, num)
     y_hat = zeros(num, 1);
-    
-    for i = 1:num
-        y_hat(i, 1) = (x(1:3, 1) - sv_pos(:, i))'/ norm(sv_pos(:, i) - x(1:3, 1)) * x(4:6, 1) + x(8);
-    end
+    y_hat(1:3,1) = x(1:3, 1);
 end
 
-function H = compute_H_tdcp_abs(sv_pos, x, num)
+function H = compute_H_pos(x, num)
     % x: State vector (8x1) [Delta x; Delta y; Delta z; Delta vx; Delta vy; Delta vz; b; b_dot]
     % z: Matrix of pesudorange with respect to Satellite A (mx2)
     % sv_pos: Matrix of sv pos with in ecef frame (mx3)
     % Returns H: M
     H = zeros(num, 16); % Initialize H matrix
-   
-    for i = 1:num
-        H(i, 4:6) = (x(1:3, 1) - sv_pos(:, i))'/ norm(sv_pos(:, i) - x(1:3, 1));
-        H(i, 8) = 1; % Clock bias term
-    end
-end
-
-
-function y_hat = h_tdcp_rel(sv_pos1, sv_pos2, x, num)
-    y_hat = zeros(num, 1);
     
-    for i = 1:num
-        y_hat(i, 1) = (x(1:3, 1) + x(9:11, 1) - sv_pos1(:, i))'/ ...
-                    norm(sv_pos1(:, i) - (x(1:3, 1)+ x(9:11, 1))) * (x(4:6, 1) + x(12:14, 1)) + (x(16) - x(8));
-    end
-end
-
-function H = compute_H_tdcp_rel(sv_pos1, sv_pos2, x, num)
-    % x: State vector (8x1) [Delta x; Delta y; Delta z; Delta vx; Delta vy; Delta vz; b; b_dot]
-    % z: Matrix of pesudorange with respect to Satellite A (mx2)
-    % sv_pos: Matrix of sv pos with in ecef frame (mx3)
-    % Returns H: M
-    H = zeros(num, 16); % Initialize H matrix
-   
-    
-    for i = 1:num
-        H(i, 4:6) = (x(1:3, 1) - sv_pos(:, i))'/ norm(sv_pos(:, i) - x(1:3, 1));
-        H(i, 8) = 1; % Clock bias term
-        H(i, 9:11) =  x(9:11, 1) / norm(x(9:11, 1));
-    end
+    H(1:3, 1:3) = eye(3);
 end

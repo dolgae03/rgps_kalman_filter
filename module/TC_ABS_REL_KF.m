@@ -93,8 +93,6 @@ classdef TC_ABS_REL_KF
             z_hat = [y_abs; y_rel; y_range];
             z = [z_abs; z_rel; z_range];
 
-            %%
-
             % 칼만 이득 계산
             K = obj.covariance * H' * inv(H * obj.covariance * H' + R);
 

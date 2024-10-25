@@ -4,186 +4,131 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     addpath('./helper');
     
     rng(42)
-    
-    %% 시뮬레이션 데이터 추출
+
+    %% 초기 변수 정의
+    SV_NUM = 3;
     val_num = 16;
+
+    use_external_force = true;
 
     num_iterations = 200; % 시간 단계 수
     convergence_idx = 50;
-    
-    dataset = make_dataset(num_iterations, sigma_pr, sigma_range);
-    true_position = (dataset.sat2_positions - dataset.sat1_positions);
-    true_velocity = (dataset.sat2_velocity - dataset.sat1_velocity);
-    gps_visable = zeros(3, num_iterations);
+
+    %% 시뮬레이션 데이터 추출
+    dataset = make_dataset(num_iterations, sigma_pr, sigma_range, SV_NUM);
     
     % 데이터를 저장할 배열
     p_idx = 1;
     curr_time = [];
+    ls_position = [];
+    sv_pos = dataset.sat_positions;
+    sv_vel = dataset.sat_velocity;
     pr_mes = dataset.pr_mes;
     range_mes = dataset.range_mes;
-    carrier_mes = dataset.carrier_mes;
     gps_pos = dataset.gps_positions;
-    gps_visable = dataset.gps_visablity;
-    estimated_states = zeros(val_num, num_iterations);
-    estimated_P = zeros(val_num, val_num,  num_iterations);
-    estimated_states_with_pr = zeros(val_num, num_iterations);
+
     ls_position = zeros(4, num_iterations);
 
-    
+    %% 초기 상태 칼만필터 생성 및 초기값 정의 (x, y, z, vx, vy, vz, b, b_dot)
 
-    %% 초기 상태 (x, y, z, vx, vy, vz, b, b_dot)
+    kalman_filter_list = cell(SV_NUM, 1);
+    kalman_filter_without_final_update_list = cell(SV_NUM, 1);
+
     inital_P_sigma = 20;
 
-    init_x = zeros(val_num, 1);
-    init_x(1:3, 1) = dataset.sat1_positions(:, 1) + [randn; randn; randn] .* inital_P_sigma;
-    init_x(4:6, 1) = dataset.sat1_velocity(:, 1) + [randn; randn; randn] .* inital_P_sigma;
-    init_x(7, 1) = 3 + randn * inital_P_sigma;
-
-    init_x(9:11, 1) = (dataset.sat2_positions(:, 1) - dataset.sat1_positions(:, 1)) + [randn; randn; randn] .* inital_P_sigma;
-    init_x(12:14, 1) = dataset.sat2_velocity(:, 1) - dataset.sat1_velocity(:, 1)  + [randn; randn; randn] .* inital_P_sigma;
-    init_x(15, 1) = randn * inital_P_sigma;
-
-    P = inital_P_sigma * eye(val_num);
-    
-    %% Kalman Filter 정의
-    use_external_force = true;
-    
-    kalman_filter = TC_TDCP_KF(init_x, P, use_external_force);
-    kalman_filter_without_range = TC_TDCP_KF(init_x, P, use_external_force);
-    
-    %% Simulatin 수행
-    for k = 1:num_iterations
-        %% Prediction 단계
+    for k = 1:SV_NUM-1
+        init_x = zeros(val_num, 1);
+        init_x(1:3, 1) = sv_pos{1,k}(:, 1) + [randn; randn; randn] .* inital_P_sigma;
+        init_x(4:6, 1) = sv_vel{1,k}(:, 1) + [randn; randn; randn] .* inital_P_sigma;
+        init_x(7, 1) = 3 + randn * inital_P_sigma;
         
-        dt = 1;
-        for update_idx = 1:1/dt
-            Q = 1 * eye(val_num);
-            kalman_filter = kalman_filter.predict(Q, 1);
-
-            Q_without_range = 1 * eye(val_num);
-            kalman_filter_without_range = kalman_filter_without_range.predict(Q_without_range, dt);
+        init_x(9:11, 1) = (sv_pos{1,k+1}(:, 1) - sv_pos{1,k}(:, 1)) + [randn; randn; randn] .* inital_P_sigma;
+        init_x(12:14, 1) = (sv_vel{1,k+1}(:, 1) - sv_vel{1,k}(:, 1))  + [randn; randn; randn] .* inital_P_sigma;
+        init_x(15, 1) = randn * inital_P_sigma;
+        
+        init_P = inital_P_sigma * eye(val_num);
+        
+        kalman_filter_list{k} = TC_TDCP_KF(init_x, init_P, use_external_force);
+        kalman_filter_without_final_update_list{k} = TC_TDCP_KF(init_x, init_P, use_external_force);
+    end
     
-            curr_time(p_idx) = k + update_idx * dt;
-            estimated_P(:, :, p_idx) = kalman_filter.covariance;
-            p_idx = p_idx + 1;
+    %% Simulatin 시작
+    for i = 1:num_iterations
+        %% Prediction
+        for k = 1:SV_NUM-1
+            dt = 1;
+            for update_idx = 1:1/dt
+                Q = 5e-4 * eye(val_num);
+                kalman_filter_list{k} = kalman_filter_list{k}.predict(Q, 1);
+                kalman_filter_without_final_update_list{k} = kalman_filter_without_final_update_list{k}.predict(Q, 1);
+            end
         end
 
         
-        %% Define Input
-        mes1 = pr_mes{1, k};
-        mes2 = pr_mes{2, k};
+        %% Inital Position Update
+        for k = 1:SV_NUM-1
+            valid_indices_pr = ~isnan(pr_mes{i, k}) & ~isnan(pr_mes{i, k+1});
 
-        carrier1_prev = zeros(size(mes1));
-        carrier2_prev = zeros(size(mes2));
+            mes1 = pr_mes{i, k}(valid_indices_pr);
+            mes2 = pr_mes{i, k+1}(valid_indices_pr);
+            r_mes = range_mes{i, k};
 
-        carrier1_curr = zeros(size(mes1));
-        carrier2_curr = zeros(size(mes2));
-        
-        if k > 1
-            carrier1_prev = carrier_mes{1, k-1};
-            carrier2_prev = carrier_mes{2, k-1};
-
-            carrier1_curr = carrier_mes{1, k};
-            carrier2_curr = carrier_mes{2, k};
-            
-        end
-
-        %% Select vailable Satellite
-        
-        % Pesudorange exists
-        valid_indices_pr = ~isnan(mes1) & ~isnan(mes2) & ~isnan(carrier1_prev) & ...
-                             ~isnan(carrier1_curr) & ~isnan(carrier2_curr) & ~isnan(carrier2_prev);
-
-        % Carrier Exist k, k-1
-        valid_indices_carrier = ~isnan(mes1) & ~isnan(mes2) & ~isnan(carrier1_prev) & ...
-                             ~isnan(carrier1_curr) & ~isnan(carrier2_curr) & ~isnan(carrier2_prev);
-
-        mes1 = mes1(valid_indices_pr, 1);
-        mes2 = mes2(valid_indices_pr, 1);
-
-        carrier1_prev = carrier1_prev(valid_indices_carrier, 1);
-        carrier2_prev = carrier2_prev(valid_indices_carrier, 1);
-        carrier1_curr = carrier1_curr(valid_indices_carrier, 1);
-        carrier2_curr = carrier2_curr(valid_indices_carrier, 1);
-        
-        gps_pos_k = gps_pos{1, k};
-        gps_pos_k = gps_pos_k(:, valid_indices_pr);
-
-        if k > 1
-            gps_pos_k_1 = gps_pos{1, k-1};
-            gps_pos_k_1 = gps_pos_k_1(:, valid_indices_pr);
-        end
-
-        %% Caclculate LS Solution
-        ref_pos = GNSS_LS(mes1, length(mes1), gps_pos_k);
-        ref_pos2 = GNSS_LS(mes2,length(mes2), gps_pos_k);
-
-        %% Define Measurement Noise
-        measurement_size = size(mes1, 1);
-        range_mes_size = size(range_mes, 1);
-        carrier_mes_size = size(carrier2_curr, 1);
-
-        if k>1
-            R = zeros(measurement_size * 2 + range_mes_size + carrier_mes_size);
-            R(1:measurement_size, 1:measurement_size) = r_sigma_pr .* eye(measurement_size);
-            R(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * 2 .* eye(measurement_size);
-            R(2*measurement_size + 1 : measurement_size * 2 + range_mes_size, 2*measurement_size + 1 : measurement_size * 2 + range_mes_size) = r_sigma_range .* eye(range_mes_size);
-            R(measurement_size * 2 + range_mes_size + 1 : end, measurement_size * 2 + range_mes_size + 1:end) = 1 * eye(carrier_mes_size);
-        else
+            gps_pos_k = gps_pos{i, k}(:, valid_indices_pr);
+            %% Define Measurement Noise
+            measurement_size = size(mes1, 1);
+            range_mes_size = size(r_mes, 1);
+    
             R = zeros(measurement_size * 2 + range_mes_size);
             R(1:measurement_size, 1:measurement_size) = r_sigma_pr .* eye(measurement_size);
             R(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * 2 .* eye(measurement_size);
             R(2*measurement_size + 1 : measurement_size * 2 + range_mes_size, 2*measurement_size + 1 : measurement_size * 2 + range_mes_size) = r_sigma_range .* eye(range_mes_size);
+
+            %% KF Measruement 처리
+            z_abs = mes1;
+            z_rel = mes1 - mes2;
+            z_range = r_mes;
+
+            %% KF Measurement 처리
+            rotated_gps_pos_k_1 = zeros(size(gps_pos_k));
+            rotated_gps_pos_k_2 = zeros(size(gps_pos_k));
+            for j = 1:length(gps_pos_k)
+                rotated_gps_pos_k_1(:,j) = rotate_gps_forward(gps_pos_k(:, j), kalman_filter_list{k}.state(1:3, 1));
+                rotated_gps_pos_k_2(:,j) = rotate_gps_forward(gps_pos_k(:, j), kalman_filter_list{k}.state(1:3, 1) + kalman_filter_list{k}.state(9:11, 1));
+            end
+
+            kalman_filter_list{k} = kalman_filter_list{k}.inital_correct(rotated_gps_pos_k_1, rotated_gps_pos_k_2, z_abs, z_rel, z_range, R);
+            kalman_filter_without_final_update_list{k} = kalman_filter_without_final_update_list{k}.inital_correct(rotated_gps_pos_k_1, rotated_gps_pos_k_2, z_abs, z_rel, z_range, R);
+        
+            %% LS Solution
+            if k == 2
+                ref_pos = GNSS_LS(mes1, length(mes1), gps_pos_k);
+                ref_pos2 = GNSS_LS(mes2,length(mes2), gps_pos_k);
+                ls_position(:, i) = ref_pos2 - ref_pos;
+            end
         end
 
-        R_only_pr = zeros(measurement_size * 2);
-        R_only_pr(1:measurement_size, 1:measurement_size) = r_sigma_pr .* eye(measurement_size);
-        R_only_pr(measurement_size + 1 : 2*measurement_size, measurement_size + 1 : 2*measurement_size) = r_sigma_pr * 2 .* eye(measurement_size);
-    
-        %% KF Measruement 처리
-        z_abs = mes1;
-        z_rel = mes1 - mes2;
-        z_range = range_mes(:, 1, k);
-        if k > 1
-            z_tdcp = calculate_tdcp(kalman_filter.prev_state(1:3, 1), kalman_filter.state(1:3, 1), ...
-                                carrier1_prev, gps_pos_k_1, carrier1_curr, gps_pos_k);
 
-            z_tdcp2 = calculate_tdcp(kalman_filter.prev_state(1:3, 1) + kalman_filter.prev_state(9:11, 1), ...
-                                     kalman_filter.state(1:3, 1) + kalman_filter.prev_state(9:11, 1), ...
-                                     carrier2_prev, gps_pos_k_1, carrier2_curr, gps_pos_k);
-
-            z_tdcp_rel = z_tdcp - z_tdcp2;
-        else
-            z_tdcp = [];
-            z_tdcp_rel = [];
+        %% Final Position Update
+        for k = 2:SV_NUM-1
+            [init_position, init_cov] = kalman_filter_list{k-1}.get_relative_pos_info();
+            kalman_filter_list{k} = kalman_filter_list{k}.final_correct(init_position, init_cov);
         end
-        
-
-        rotated_gps_pos_k_1 = zeros(size(gps_pos_k));
-        rotated_gps_pos_k_2 = zeros(size(gps_pos_k));
-        for j = 1:length(gps_pos_k)
-            rotated_gps_pos_k_1(:,j) = rotate_gps_forward(gps_pos_k(:, j), kalman_filter.state(1:3, 1));
-            rotated_gps_pos_k_2(:,j) = rotate_gps_forward(gps_pos_k(:, j), kalman_filter.state(1:3, 1) + kalman_filter.state(9:11, 1));
-        end
-        
-        kalman_filter_without_range = kalman_filter_without_range.correct(rotated_gps_pos_k_1, rotated_gps_pos_k_2, z_abs, z_rel, [], [], [], R_only_pr);
-        kalman_filter = kalman_filter.correct(rotated_gps_pos_k_1, rotated_gps_pos_k_2, z_abs, z_rel, z_range, z_tdcp, [], R);
-        
-        %% 현재 Kalman_filter
-        ls_position(:, k) = ref_pos2 - ref_pos;
-        estimated_states(:, k) = kalman_filter.state;
-        estimated_states_with_pr(:, k) = kalman_filter_without_range.state;
-
-        curr_time(p_idx) = k+1;
-        estimated_P(:, :, p_idx) = kalman_filter.covariance;
-        p_idx = p_idx + 1;
     end
-
     
+
+    %% True Position 정의
+    true_position = [];
+    true_velocity = [];
+    target_sv = 2;
+
+    for i = convergence_idx:num_iterations
+        true_position(:, i) = sv_pos{i, target_sv + 1} - sv_pos{i, target_sv};
+        true_velocity(:, i) = sv_vel{i, target_sv + 1} - sv_vel{i, target_sv};
+    end
     
     %% 3D RMS Error 계산
     time = convergence_idx:num_iterations;
-    estimated_position = estimated_states(9:11, :);
+    estimated_position = kalman_filter_list{target_sv}.final_log(9:11, :);
     ls_position_rel = ls_position(1:3, :);
     
     error_x = abs(true_position(1, convergence_idx:end) - estimated_position(1, convergence_idx:end));
@@ -193,7 +138,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     error_3d = sqrt(error_x.^2 + error_y.^2 + error_z.^2);
 
     %% kalman filter 에러 계산
-    estimated_position = estimated_states_with_pr(9:11, :);
+    estimated_position = kalman_filter_without_final_update_list{target_sv}.inital_log(9:11, :);
     error_x_with_pr = abs(true_position(1, convergence_idx:end) - estimated_position(1, convergence_idx:end));
     error_y_with_pr = abs(true_position(2, convergence_idx:end) - estimated_position(2, convergence_idx:end));
     error_z_with_pr = abs(true_position(3, convergence_idx:end) - estimated_position(3, convergence_idx:end));
@@ -223,10 +168,10 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     fileID = fopen(txt_file_pos_path, 'w');  % 'w' 모드는 파일에 쓰기
 
     % 결과를 파일에 저장
-    fprintf(fileID, 'Final RMS error (KF) in X-axis: %.4f meters\n', sqrt(mean(error_x.^2)));
-    fprintf(fileID, 'Final RMS error (KF) in Y-axis: %.4f meters\n', sqrt(mean(error_y.^2)));
-    fprintf(fileID, 'Final RMS error (KF) in Z-axis: %.4f meters\n', sqrt(mean(error_z.^2)));
-    fprintf(fileID, 'Final RMS error (KF) in 3D: %.4f meters\n', sqrt(mean(error_3d.^2)));
+    fprintf(fileID, 'Final RMS error (KF with State Update) in X-axis: %.4f meters\n', sqrt(mean(error_x.^2)));
+    fprintf(fileID, 'Final RMS error (KF with State Update) in Y-axis: %.4f meters\n', sqrt(mean(error_y.^2)));
+    fprintf(fileID, 'Final RMS error (KF with State Update) in Z-axis: %.4f meters\n', sqrt(mean(error_z.^2)));
+    fprintf(fileID, 'Final RMS error (KF with State Update) in 3D: %.4f meters\n', sqrt(mean(error_3d.^2)));
     
     fprintf(fileID, 'Final RMS error (KF without range) in X-axis: %.4f meters\n', sqrt(mean(error_x_with_pr.^2)));
     fprintf(fileID, 'Final RMS error (KF without range) in Y-axis: %.4f meters\n', sqrt(mean(error_y_with_pr.^2)));
@@ -260,7 +205,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     plot(time, error_x_with_pr, '-g', 'LineWidth', 1);
     hold on;
     plot(time, ls_error_x, '-b', 'LineWidth', 1);
-    legend('EKF with range', 'EKF without range','LS');
+    legend('EKF final', 'EKF inital','LS');
     title('X-axis Error over Time');
     xlim([convergence_idx, num_iterations])
     xlabel('Time step');
@@ -273,7 +218,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     plot(time, error_y_with_pr, '-g', 'LineWidth', 1);
     hold on;
     plot(time, ls_error_y, '-b', 'LineWidth', 1);
-    legend('EKF with range', 'EKF without range','LS');
+    legend('EKF final', 'EKF inital','LS');
     title('Y-axis Error over Time');
     xlim([convergence_idx, num_iterations])
     xlabel('Time step');
@@ -286,7 +231,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     plot(time, error_z_with_pr, '-g', 'LineWidth', 1);
     hold on;
     plot(time, ls_error_z, '-b', 'LineWidth', 1);
-    legend('EKF with range', 'EKF without range','LS');
+    legend('EKF final', 'EKF inital','LS');
     xlim([convergence_idx, num_iterations])
     title('Z-axis Error over Time');
     xlabel('Time step');
@@ -299,7 +244,7 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
     plot(time, error_3d_with_pr, '-g', 'LineWidth', 1);
     hold on;
     plot(time, ls_error_3d, '-b', 'LineWidth', 1);
-    legend('EKF with range', 'EKF without range','LS');
+    legend('EKF final', 'EKF inital','LS');
     title('3D Error over Time');
     xlim([convergence_idx, num_iterations])
     xlabel('Time step');
@@ -312,8 +257,8 @@ function [kf_error_vec, ls_error_vec, kf_error_with_pr_vec] = main_abs_rel_range
 
     %% Velocity error calculation
     % Extract velocity estimates
-    estimated_velocity = estimated_states(12:14, :);  % Assuming velocity is in rows 4 to 6
-    estimated_velocity_with_pr = estimated_states_with_pr(12:14, :);  % Velocity for KF without range
+    estimated_velocity = kalman_filter_list{target_sv}.final_log(12:14, :);  % Assuming velocity is in rows 4 to 6
+    estimated_velocity_with_pr = kalman_filter_without_final_update_list{target_sv}.inital_log(12:14, :);  % Velocity for KF without range
     % ls_velocity_rel = ls_velocity(1:3, :);  % LS estimated velocity
     
     % Calculate velocity errors
