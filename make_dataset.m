@@ -1,53 +1,58 @@
-function dataset = make_dataset(num_samples, sigma_pr, sigma_range)
+function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num)
     start_time = datetime(2024, 9, 8, 14, 30, 0);
 
     times = start_time + seconds((1:num_samples));
 
-    pr_mes = cell(2, num_samples);
-    carrier_mes = cell(2, num_samples);
-    range_mes = zeros(2, 1, num_samples);
+    pr_mes = cell(num_samples, sv_num);
+    carrier_mes = cell(num_samples, sv_num);
+    range_mes = cell(num_samples, sv_num);
 
-    [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablility] = make_position_data(start_time, num_samples);
+    [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, sv_num);
     
     for i = 1:num_samples
-        pos1 = sv1_pos(:, i);
-        pos2 = sv2_pos(:, i);
+        for k = 1:sv_num
+            pos = sv_pos{i, k}(:, 1);
+        
+            pos_gps = gps_pos{i, k};
 
-        pos_gps = gps_pos{i};
-        for j = 1:size(pos_gps, 2)
-            pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, j), pos1);
-            pr_mes{1, i}(j,1) = generate_pr(pos_gps_when_send_signal, pos1, sigma_pr);
-            carrier_mes{1, i}(j,1) = generate_carrier(pos_gps_when_send_signal, pos1, 0.02);
 
-            pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, j), pos2);
-            pr_mes{2, i}(j,1) = generate_pr(pos_gps_when_send_signal, pos2, sigma_pr);
-            carrier_mes{2, i}(j,1) = generate_carrier(pos_gps_when_send_signal, pos2, 0.02);
+            for j = 1:size(pos_gps, 2)
+                if ~any(isnan(pos_gps(:, j)))
+                    pos_gps_when_send_signal = rotate_gps_forward(pos_gps(:, j), pos);
+                    pr_mes{i, k}(j, 1) = generate_pr(pos_gps_when_send_signal, pos, sigma_pr);
+                    carrier_mes{i, k}(j, 1) = generate_carrier(pos_gps_when_send_signal, pos, 0.02);
+                else
+                    pr_mes{i, k}(j, 1) = nan;
+                    carrier_mes{i, k}(j, 1) = nan;
+                end
+            end
+            
+            if k < sv_num
+                pos_next = sv_pos{i, k+1}(:, 1);
+                range_mes{i, k}(1, 1) = generate_range(pos, pos_next, sigma_range);
+                range_mes{i, k}(2, 1) = generate_range(pos, pos_next, sigma_range);
+            end
         end
-
-        range_mes(1, 1, i) = generate_range(pos1, pos2, sigma_range);
-        range_mes(2, 1, i) = generate_range(pos1, pos2, sigma_range);
+        
     end
 
-    dataset.sat1_positions = sv1_pos;
-    dataset.sat2_positions = sv2_pos;
-    dataset.sat1_velocity = sv1_vel;
-    dataset.sat2_velocity = sv2_vel;
+    dataset.sat_positions = sv_pos;
+    dataset.sat_velocity = sv_vel;
     dataset.pr_mes = pr_mes;
     dataset.range_mes = range_mes;
     dataset.carrier_mes = carrier_mes;
     dataset.gps_positions = gps_pos;
-    dataset.gps_visablity = gps_visablility;
     dataset.times = times;
 end
 
-function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_position_data(start_time, num_samples)
+function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, leo_sat_num)
     % 파일 이름 생성
     folder_name = './data/position_data';
     if ~exist(folder_name, 'dir')
         mkdir(folder_name);  % data 폴더가 없으면 생성
     end
     % 날짜와 샘플 수 기반으로 파일 이름 생성
-    file_name = sprintf('%s/position_velocity_data_%s_%d.mat', folder_name, datestr(start_time, 'yyyymmdd_HHMMSS'), num_samples);
+    file_name = sprintf('%s/position_velocity_data_%s_%d_%d.mat', folder_name, datestr(start_time, 'yyyymmdd_HHMMSS'), num_samples, leo_sat_num);
     
     % 파일이 존재하는지 확인
     if exist(file_name, 'file')
@@ -55,11 +60,8 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_pos
         disp('파일이 존재합니다. 데이터를 로드합니다...');
         loaded_data = load(file_name);
         gps_pos = loaded_data.gps_pos;
-        sv1_pos = loaded_data.sv1_pos;
-        sv2_pos = loaded_data.sv2_pos;
-        sv1_vel = loaded_data.sv1_vel;
-        sv2_vel = loaded_data.sv2_vel;
-        gps_visablity = loaded_data.gps_visablity;
+        sv_pos = loaded_data.sv_pos;
+        sv_vel = loaded_data.sv_vel;
     else
         % 파일이 존재하지 않으면 데이터를 생성
         disp('파일이 존재하지 않습니다. 데이터를 생성합니다...');
@@ -69,7 +71,7 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_pos
         sc = satelliteScenario(start_time, stop_time, num_samples, 'AutoSimulate', false);
         
         % 가상 위성 1, 2를 얻음
-        [sv1, sv2] = get_virtual_satellite(sc);
+        leo_sv = get_virtual_satellite(sc, leo_sat_num);
 
         % GPS 위성을 얻음
         gps_sv = get_gps_satellite(sc)';
@@ -77,75 +79,56 @@ function [gps_pos, sv1_pos, sv2_pos, sv1_vel, sv2_vel, gps_visablity] = make_pos
         % 시뮬레이션 시간 계산
         times = start_time + seconds((1:num_samples));
 
-        v = satelliteScenarioViewer(sc,'ShowDetails',true);
-        play(sc);
+        % v = satelliteScenarioViewer(sc,'ShowDetails',true);
+        % play(sc);
 
+        sv_pos = cell(num_samples, leo_sat_num);
+        sv_vel = cell(num_samples, leo_sat_num);
+        gps_pos = cell(num_samples, leo_sat_num);
 
-        % 위성들의 위치 및 속도 데이터를 저장할 변수 초기화
-        sv1_pos = zeros(3, num_samples);
-        sv2_pos = zeros(3, num_samples);
-        sv1_vel = zeros(3, num_samples);
-        sv2_vel = zeros(3, num_samples);
-        gps_pos = cell(1, num_samples); % GPS 위성 위치 저장
-        gps_visablity = zeros(3, num_samples);
-
-        % Elevation Threshold
-        elevation_threshold = 10;
+        elevation_threshold = 30;
 
         for i = 1:num_samples
             % 각 시점에서 가상 위성 1과 2의 위치를 가져옴
-            [pos1, vel1] = states(sv1, times(i), 'CoordinateFrame', 'ecef');
-            [pos2, vel2] = states(sv2, times(i), 'CoordinateFrame', 'ecef');
+            for k = 1:leo_sat_num
+                [pos, vel] = states(leo_sv{k}, times(i), 'CoordinateFrame', 'ecef');
+                sv_pos{i, k}(:, 1) = pos;
+                sv_vel{i, k}(:, 1) = vel;
+            end
 
-            % GPS 위성의 위치를 가져옴
             pos_gps = states(gps_sv, times(i), 'CoordinateFrame', 'ecef');
-
-            idx = 1;
 
             % 각 GPS 위성에 대해 Elevation 각도 체크 후 위치 계산
             for j = 1:31
-                if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold
-                    gps_visablity(1, i) = gps_visablity(1, i)  + 1
-                end
-
-                if calculate_elevation(pos2, pos_gps(:, 1, j)) > elevation_threshold
-                    gps_visablity(2, i) = gps_visablity(2, i)  + 1
-                end
-              
-
-                if calculate_elevation(pos1, pos_gps(:, 1, j)) > elevation_threshold ...
-                   && calculate_elevation(pos2, pos_gps(:, 1, j)) > elevation_threshold
-           
-                    % GPS 위성 위치 저장
-                    gps_pos{1, i}(:, idx) = pos_gps(:, 1, j);
-                    idx = idx + 1;
-
-                    gps_visablity(3, i) = gps_visablity(3, i)  + 1
+                for k = 1:leo_sat_num
+                    if calculate_elevation(sv_pos{i, k}(:, 1), pos_gps(:, 1, j)) > elevation_threshold
+                        gps_pos{i, k}(:, j) = pos_gps(:, 1, j);
+                    else
+                        gps_pos{i, k}(:, j) = [nan; nan; nan];
+                    end
                 end
             end
-
-            % 가상 위성 1과 2의 위치와 속도 저장
-            sv1_pos(:, i) = pos1; % X, Y, Z 좌표
-            sv2_pos(:, i) = pos2; % X, Y, Z 좌표
-            sv1_vel(:, i) = vel1;      % X, Y, Z 속도
-            sv2_vel(:, i) = vel2;      % X, Y, Z 속도
         end
 
         % 데이터를 파일로 저장
-        save(file_name, 'gps_pos', 'sv1_pos', 'sv2_pos', 'sv1_vel', 'sv2_vel', 'gps_visablity');
+        save(file_name, 'gps_pos', 'sv_pos', 'sv_vel');
         disp(['데이터가 저장되었습니다: ' file_name]);
     end
 end
 
 function pr = generate_carrier(gps_pos, sat_pos, sigma)
-    distance = norm(gps_pos - sat_pos);
+    c = 299792458;           % Speed of light in m/s
+    f = 1575.42e6;
+    lambda =  c / f;
 
+    exact_integer = norm(gps_pos - sat_pos) / lambda;
+   
     % Generate Gaussian noise with mean 0 and standard deviation sigma
     noise = sigma * randn;
     N = 12315;
     
     % Calculate the pseudorange
-    pr = distance + noise;
+    pr = exact_integer + noise / lambda;
 end
 
 function pr = generate_pr(gps_pos, sat_pos, sigma)
@@ -169,13 +152,24 @@ function range = generate_range(pos1, pos2, sigma)
 end
 
 
-function [sv1, sv2] = get_virtual_satellite(scenario)
-    sv1 = satellite(scenario, './data/tle1.txt', ...
-                    "OrbitPropagator","sgp4");
-    sv2 = satellite(scenario, './data/tle2.txt', ...
-                    "OrbitPropagator","sgp4");
+function sv = get_virtual_satellite(scenario, total_tle_number)
+    % Ensure the number is between 1 and 4
+    if total_tle_number < 1 || total_tle_number > 4
+        error('tle_number must be between 1 and 4.');
+    end
 
+    sv = [];
+    
+    for tle_num = 1:total_tle_number
+        % Dynamically generate the TLE file path based on the input number
+        tle_file = sprintf('./data/tle%d.txt', tle_num);
+        
+        % Create the satellite object using the selected TLE file
+        sv{end+1} = satellite(scenario, tle_file, "OrbitPropagator", "sgp4");
+    end
 end
+
+
 
 function sv = get_gps_satellite(sceneario)
     sv = satellite(sceneario, './data/gpsalmanac.txt');

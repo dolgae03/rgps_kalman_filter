@@ -1,28 +1,31 @@
-classdef TC_ABS_REL_KF
+classdef TC_TDCP_KF
     properties
+        prev_state
         state   % 현재 상태 추정
         covariance   % 현재 공분산 행렬
         A
         u
         use_external_force
+        final_log
+        inital_log
     end
     
     methods
         % 생성자 메서드
-        function obj = TC_ABS_REL_KF(initialState, initialCovariance, use_external_force)
+        function obj = TC_TDCP_KF(initialState, initialCovariance, use_external_force)
+            obj.prev_state = initialState;
             obj.state = initialState;
             obj.covariance = initialCovariance;
             obj.A = [];
             obj.u = [];
             obj.use_external_force = use_external_force;
+            obj.inital_log = [];
+            obj.final_log = [];
         end
 
         function obj = update_A(obj, dt)
-            % 3x3 단위 행렬
-
             I3 = eye(3);
             
-            % 상태 전이 행렬 초기화 (16x16)
             F = zeros(16, 16);
             
             % 절대 위치와 속도에 대한 부분
@@ -79,26 +82,81 @@ classdef TC_ABS_REL_KF
         end
         
         % Correction 메서드
-        function obj = correct(obj, sv_pos1, sv_pos2, z_abs, z_rel, z_range, R)
+        function obj = inital_correct(obj, sv_pos1, sv_pos2, z_abs, z_rel, z_range, R)
             H_abs = compute_H_absolute(sv_pos1, obj.state, length(z_abs));
             H_rel = compute_H_relative(sv_pos1, sv_pos2, obj.state, length(z_rel));
             H_range = compute_H_range(sv_pos1, obj.state, length(z_range));
 
-            H = [H_abs; H_rel; H_range];
-            
+            H = [H_abs; H_rel; H_range;];
+
             y_abs = h_absolute(sv_pos1, obj.state, length(z_abs));
             y_rel = h_relative(sv_pos1, sv_pos2, obj.state, length(z_rel));
             y_range = h_range(sv_pos1, obj.state, length(z_range));
 
-            z_hat = [y_abs; y_rel; y_range];
-            z = [z_abs; z_rel; z_range];
+            z_hat = [y_abs; y_rel; y_range;];
+            z = [z_abs; z_rel; z_range;];
 
             % 칼만 이득 계산
             K = obj.covariance * H' * inv(H * obj.covariance * H' + R);
 
             % 상태 업데이트
+            obj.prev_state = obj.state;
+
             obj.state = obj.state + K * (z - z_hat);
             obj.covariance = (eye(size(obj.covariance)) - K * H) * obj.covariance;
+
+            obj.inital_log(:, end+1) = obj.state;
+        end
+    
+           
+        function obj = final_correct(obj, z_pos, R)
+            H = compute_H_pos(obj.state, length(z_pos));
+            z_hat = h_pos(obj.state, length(z_pos));
+            z = z_pos;
+
+            % 칼만 이득 계산
+            K = obj.covariance * H' * inv(H * obj.covariance * H' + R);
+
+            % 상태 업데이트
+            obj.prev_state = obj.state;
+
+            obj.state = obj.state + K * (z - z_hat);
+            obj.covariance = (eye(size(obj.covariance)) - K * H) * obj.covariance;
+            
+            obj.final_log(:, end+1) = obj.state;
+        end
+
+        function [pos, cov] = get_relative_pos_info(obj)
+            % Extract position and orientation information from the state
+            pos = [obj.state(1:3) + obj.state(9:11); obj.state(7) + obj.state(15)];
+            
+            % Define indices for state vectors
+            pos_indices_1 = 1:3;    % First part of the position
+            pos_indices_2 = 9:11;   % Second part of the position
+            orient_indices_1 = 7;   % First part of the orientation
+            orient_indices_2 = 15;  % Second part of the orientation
+            
+            % Covariance for the position part
+            cov_pos_1 = obj.covariance(pos_indices_1, pos_indices_1);
+            cov_pos_2 = obj.covariance(pos_indices_2, pos_indices_2);
+        
+            cov_1_1 = cov_pos_1 + cov_pos_2;
+            
+            cov_pos_1 = obj.covariance(orient_indices_1, pos_indices_1);
+            cov_pos_2 = obj.covariance(orient_indices_2, pos_indices_2);
+            cov_1_2 = cov_pos_1 + cov_pos_2;
+        
+            cov_orient_1 = obj.covariance(orient_indices_1, orient_indices_1);
+            cov_orient_2 = obj.covariance(orient_indices_2, orient_indices_2);
+        
+            cov_2_2 = cov_orient_1 + cov_orient_2;
+
+            cov_pos_1 = obj.covariance(pos_indices_1, orient_indices_1);
+            cov_pos_2 = obj.covariance(pos_indices_2, orient_indices_2);
+            cov_2_1 = cov_pos_1 + cov_pos_2;
+        
+            cov = [cov_1_1, cov_2_1;
+                   cov_1_2, cov_2_2];
         end
     end
 end
@@ -176,4 +234,19 @@ function H = compute_H_range(sv_pos, x, num)
     for i = 1:num
         H(i, 9:11) =  x(9:11, 1) / norm(x(9:11, 1));
     end
+end
+
+function y_hat = h_pos(x, num)
+    y_hat = zeros(num, 1);
+    y_hat(1:3,1) = x(1:3, 1);
+end
+
+function H = compute_H_pos(x, num)
+    % x: State vector (8x1) [Delta x; Delta y; Delta z; Delta vx; Delta vy; Delta vz; b; b_dot]
+    % z: Matrix of pesudorange with respect to Satellite A (mx2)
+    % sv_pos: Matrix of sv pos with in ecef frame (mx3)
+    % Returns H: M
+    H = zeros(num, 16); % Initialize H matrix
+    
+    H(1:3, 1:3) = eye(3);
 end
