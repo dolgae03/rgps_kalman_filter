@@ -1,5 +1,5 @@
 % Kalman Filter with 3D RMS Error Plot for both KF solution and Measurements
-function [pos_sol, vel_sol] = run_simulation_with_pr(dataset, r_sigma_pr, q_value)
+function [pos_sol, vel_sol, cov_sol] = run_simulation_with_pr(dataset, r_sigma_pr, q_value)
     addpath('./module');
     addpath('./helper');
     
@@ -40,7 +40,7 @@ function [pos_sol, vel_sol] = run_simulation_with_pr(dataset, r_sigma_pr, q_valu
     end
     
     %% Simulatin 시작
-    for i = 1:length(sv_pos)
+    for i = 1:length(pr_mes)
         %% Prediction
         for k = 1:SV_NUM-1
             dt = 1;
@@ -85,4 +85,5 @@ function [pos_sol, vel_sol] = run_simulation_with_pr(dataset, r_sigma_pr, q_valu
     
     pos_sol = kalman_filter_list{1}.inital_log(9:11, :);
     vel_sol = kalman_filter_list{1}.inital_log(12:14, :);
+    cov_sol = kalman_filter_list{1}.cov_log(9:11, 9:11, 2:end);
 end

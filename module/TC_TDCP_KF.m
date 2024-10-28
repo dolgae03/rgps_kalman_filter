@@ -6,7 +6,7 @@ classdef TC_TDCP_KF
         A
         u
         use_external_force
-        final_log
+        cov_log
         inital_log
     end
     
@@ -20,7 +20,7 @@ classdef TC_TDCP_KF
             obj.u = [];
             obj.use_external_force = use_external_force;
             obj.inital_log = [];
-            obj.final_log = [];
+            obj.cov_log = [];
         end
 
         function obj = update_A(obj, dt)
@@ -106,6 +106,7 @@ classdef TC_TDCP_KF
             obj.covariance = (eye(size(obj.covariance)) - K * H) * obj.covariance;
 
             obj.inital_log(:, end+1) = obj.state;
+            obj.cov_log(:,:, end+1) = obj.covariance;
         end
     
            

@@ -1,5 +1,5 @@
 % Kalman Filter with 3D RMS Error Plot for both KF solution and Measurements
-function ls_result = run_simulation_with_ls_method(dataset)
+function [ls_result, coverience] = run_simulation_with_ls_method(dataset)
     addpath('./module');
     addpath('./helper');
     
@@ -13,6 +13,8 @@ function ls_result = run_simulation_with_ls_method(dataset)
     gps_pos = dataset.gps_positions;
 
     ls_position = zeros(4, length(pr_mes));
+    coverience = zeros(3, 3, length(pr_mes));
+
     
     %% Simulatin 시작
     for i = 1:length(pr_mes)
@@ -24,12 +26,14 @@ function ls_result = run_simulation_with_ls_method(dataset)
 
             gps_pos_k = gps_pos{i, k}(:, valid_indices_pr);
 
-            ref_pos = GNSS_LS(mes1, length(mes1), gps_pos_k);
-            ref_pos2 = GNSS_LS(mes2,length(mes2), gps_pos_k);
+            [ref_pos, cov1] = GNSS_LS(mes1, length(mes1), gps_pos_k);
+            [ref_pos2, cov2] = GNSS_LS(mes2,length(mes2), gps_pos_k);
+
+            total_cov = cov1 + cov2;
             ls_position(:, i) = ref_pos2 - ref_pos;
+            coverience(:, :, i) = total_cov(1:3, 1:3);
         end
     end
     
-
     ls_result = ls_position;
 end

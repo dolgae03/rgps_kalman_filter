@@ -1,5 +1,19 @@
 
 %% 3D RMS Error 계산
+convergence_idx = 150;
+
+%% True Position 정의
+true_position = [];
+true_velocity = [];
+
+target_sv = 1;
+
+for i = convergence_idx:num_iterations
+    true_position(:, i) = sv_pos{i, target_sv + 1} - sv_pos{i, target_sv};
+    true_velocity(:, i) = sv_vel{i, target_sv + 1} - sv_vel{i, target_sv};
+end
+
+
 time = convergence_idx:num_iterations;
 total_error = {};
 
@@ -10,13 +24,8 @@ legend_strings{end+1} = 'LS';
 % %% File WKRTJD
 % 
 % % SIGMA_PR 및 SIGMA_RANGE 변수를 파일 이름에 포함시키기 위한 문자열 생성
-fig_file_vel_path = fullfile(folder_path, ...
-                            sprintf('result_pos.fig'));
 fig_file_pos_path = fullfile(folder_path, ...
-                            sprintf('result_vel.fig'));
-
-txt_file_vel_path = fullfile(folder_path, ...
-                            sprintf('result_vel.txt'));
+                            sprintf('result_pos.fig'));
 txt_file_pos_path = fullfile(folder_path, ...
                             sprintf('result_pos.txt'));
 % 
