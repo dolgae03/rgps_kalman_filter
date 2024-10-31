@@ -79,14 +79,14 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
         % 시뮬레이션 시간 계산
         times = start_time + seconds((1:num_samples));
 
-        % v = satelliteScenarioViewer(sc,'ShowDetails',true);
-        % play(sc);
+        v = satelliteScenarioViewer(sc,'ShowDetails',true);
+        play(sc);
 
         sv_pos = cell(num_samples, leo_sat_num);
         sv_vel = cell(num_samples, leo_sat_num);
         gps_pos = cell(num_samples, leo_sat_num);
 
-        elevation_threshold = 30;
+        elevation_threshold = 10;
 
         for i = 1:num_samples
             % 각 시점에서 가상 위성 1과 2의 위치를 가져옴
@@ -173,4 +173,8 @@ end
 
 function sv = get_gps_satellite(sceneario)
     sv = satellite(sceneario, './data/gpsalmanac.txt');
+end
+
+function sv = get_galileo_satellite(sceneario)
+    sv = satellite(sceneario, './data/galileo_tle.txt', "OrbitPropagator", "sgp4");
 end

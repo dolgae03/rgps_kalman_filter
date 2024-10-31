@@ -72,7 +72,7 @@ for i = 1:length(total_error)
 end
 
 % 동적으로 생성된 legend 적용 및 위치 설정, LaTeX 해석을 사용
-lgd = legend(p, legend_strings, 'Location', 'northwest', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
+lgd = legend(p, legend_strings, 'Location', 'northeast', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
 set(lgd, 'FontSize', 24, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
 
 % 축과 라벨의 글꼴 크기 및 두께 설정

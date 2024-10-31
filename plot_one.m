@@ -17,11 +17,11 @@ r_sigma_pr = sigma_pr;
 r_sigma_range = sigma_range;
 
 %% 시뮬레이션
-num_iterations = 400;
+num_iterations = 1000;
 sv_num = 2;
 
 %% sigma에 따른 시뮬레이션
-q_value = 5e-3;
+q_value = 2e-2;
 
 dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2);
 sv_pos = dataset.sat_positions;
@@ -56,3 +56,6 @@ plot_pos_accuracy;
 
 % 정확도 그래프 Plot (Sigma)
 plot_cov;
+
+% 위성 개수 그래프 Plot (Sigma)
+plot_sat_num;
