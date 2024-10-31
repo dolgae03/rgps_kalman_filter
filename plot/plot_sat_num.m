@@ -70,7 +70,7 @@ xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴
 ylabel('# of Satellite', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
 
 xlim([convergence_idx, num_iterations])
-ylim([0, max(max(visable_sat_mat)) + 1])
+ylim([min(max(visable_sat_mat))-1, max(max(visable_sat_mat)) + 1])
 grid on;
 
 % FIG 파일 저장
