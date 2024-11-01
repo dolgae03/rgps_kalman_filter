@@ -1,7 +1,7 @@
 clear;
 
-sigma_pr_values = 0.01:0.05:1;  % sigma_pr의 변화 범위
-sigma_range_values = 0.01:0.01:0.4;  % sigma_range의 변화 범위
+sigma_pr_values = 0.01:0.3:1;  % sigma_pr의 변화 범위
+sigma_range_values = 0.01:0.2:0.4;  % sigma_range의 변화 범위
 
 % 결과 폴더 설정
 result_folder = './result/contour';  % 원하는 폴더 경로 설정

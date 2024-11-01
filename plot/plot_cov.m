@@ -68,7 +68,7 @@ colors = lines(length(total_cov_plot));  % sigma_idx 개의 다양한 색상 생
 % 왼쪽 Y축: Standard Deviation
 yyaxis left
 for i = 1:length(total_cov_plot)
-    h(i) = plot(time, total_cov_plot{i}, 'Color', colors(i, :), 'LineStyle', '-', 'Marker', 'none','LineWidth', 1.5);  % 실선 스타일, 마커 없음
+    h(i) = plot(time, total_cov_plot{i}, 'Color', colors(i, :), 'LineStyle', '-', 'Marker', 'none','LineWidth', 2.5);  % 실선 스타일, 마커 없음
     hold on;
 end
 
@@ -82,7 +82,7 @@ end
 
 % 왼쪽 Y축 라벨 설정
 ylabel('Standard Deviation (meters)', 'FontSize', 24, 'FontWeight', 'bold', 'Color', 'k');  
-ylim([0, 3])
+ylim([0, 2.5])
 set(gca, 'YColor', 'k');  %
 
 % 오른쪽 Y축: Sat Num
@@ -103,7 +103,7 @@ set(gca, 'YColor', 'r');  %
 
 % X축 제한
 xlim([convergence_idx, num_iterations])
-ylim([33, 53])
+ylim([43, 52])
 
 grid on;
 

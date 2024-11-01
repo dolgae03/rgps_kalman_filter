@@ -1,7 +1,7 @@
 
 %% 3D RMS Error 계산
 convergence_idx = 150;
-end_num = 200;
+end_num = 1000;
 
 %% True Position 정의
 true_position = [];
@@ -62,7 +62,7 @@ colors = lines(length(total_error));  % sigma_idx 개의 다양한 색상 생성
 
 % 실제 플롯
 for i = 1:length(total_error)
-    plot(time, total_error{i}, 'Color', colors(i, :), 'LineWidth', 1);  % 얇은 실제 선
+    plot(time, total_error{i}, 'Color', colors(i, :), 'LineWidth', 2);  % 얇은 실제 선
     hold on;
 end
 

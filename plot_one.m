@@ -23,7 +23,7 @@ sv_num = 2;
 %% sigma에 따른 시뮬레이션
 q_value = 6e-2;
 
-dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b');
+dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'nb');
 sv_pos = dataset.sat_positions;
 sv_vel = dataset.sat_velocity;
 
@@ -34,7 +34,7 @@ total_vel = {};
 total_cov = {};
 
 for sigma_range = sigma_range_list
-    dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b');
+    dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'nb');
     [pr_range_pos, pr_range_vel, cov] = run_simulation_with_pr_range(dataset, r_sigma_pr, sigma_range, q_value);
     total_pos{end+1} = pr_range_pos;
     total_vel{end+1} = pr_range_vel; 

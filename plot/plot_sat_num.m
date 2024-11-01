@@ -46,7 +46,7 @@ for i = 1:3
     stairs(time, visable_sat_mat(i, :), ...
            'Color', colors(i, :), ...
            'LineStyle', line_styles{i}, ...
-           'LineWidth', 2);
+           'LineWidth', 3);
     hold on;
 end
 
@@ -70,7 +70,7 @@ xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴
 ylabel('# of Satellite', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
 
 xlim([convergence_idx, num_iterations])
-ylim([min(max(visable_sat_mat))-1, max(max(visable_sat_mat)) + 1])
+ylim([33, 48])
 grid on;
 
 % FIG 파일 저장
