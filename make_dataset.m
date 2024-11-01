@@ -1,4 +1,4 @@
-function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num)
+function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num, data_type)
     start_time = datetime(2024, 9, 8, 14, 30, 0);
 
     times = start_time + seconds((1:num_samples));
@@ -7,7 +7,7 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num)
     carrier_mes = cell(num_samples, sv_num);
     range_mes = cell(num_samples, sv_num);
 
-    [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, sv_num);
+    [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, sv_num, data_type);
     
     for i = 1:num_samples
         for k = 1:sv_num
@@ -45,7 +45,7 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num)
     dataset.times = times;
 end
 
-function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, leo_sat_num)
+function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, leo_sat_num, data_type)
     % 파일 이름 생성
     folder_name = './data/position_data';
     if ~exist(folder_name, 'dir')
@@ -59,7 +59,13 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
         % 파일이 존재하면 데이터를 로드
         disp('파일이 존재합니다. 데이터를 로드합니다...');
         loaded_data = load(file_name);
-        gps_pos = loaded_data.gps_pos;
+        
+        if data_type == 'b'
+            gps_pos = loaded_data.gps_pos_blocks;
+        else
+            gps_pos = loaded_data.gps_pos;
+        end
+
         sv_pos = loaded_data.sv_pos;
         sv_vel = loaded_data.sv_vel;
     else
@@ -75,6 +81,10 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
 
         % GPS 위성을 얻음
         gps_sv = get_gps_satellite(sc)';
+        galileo_sv = get_galileo_satellite(sc)';
+        beidou_sv = get_beidou_satellite(sc)';
+
+        total_sv = vertcat(gps_sv, galileo_sv, beidou_sv);
 
         % 시뮬레이션 시간 계산
         times = start_time + seconds((1:num_samples));
@@ -85,8 +95,8 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
         sv_pos = cell(num_samples, leo_sat_num);
         sv_vel = cell(num_samples, leo_sat_num);
         gps_pos = cell(num_samples, leo_sat_num);
+        gps_pos_blocks = cell(num_samples, leo_sat_num);
 
-        elevation_threshold = 30;
 
         for i = 1:num_samples
             % 각 시점에서 가상 위성 1과 2의 위치를 가져옴
@@ -96,22 +106,29 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
                 sv_vel{i, k}(:, 1) = vel;
             end
 
-            pos_gps = states(gps_sv, times(i), 'CoordinateFrame', 'ecef');
+            pos_gps = states(total_sv, times(i), 'CoordinateFrame', 'ecef');
 
             % 각 GPS 위성에 대해 Elevation 각도 체크 후 위치 계산
-            for j = 1:31
+            for j = 1:length(total_sv)
                 for k = 1:leo_sat_num
-                    if calculate_elevation(sv_pos{i, k}(:, 1), pos_gps(:, 1, j)) > elevation_threshold
+                    if is_valid_satellite(sv_pos{i, k}(:, 1), sv_pos{i, 3-k}(:, 1), pos_gps(:, 1, j), false)
                         gps_pos{i, k}(:, j) = pos_gps(:, 1, j);
                     else
                         gps_pos{i, k}(:, j) = [nan; nan; nan];
+                    end
+
+
+                    if is_valid_satellite(sv_pos{i, k}(:, 1), sv_pos{i, 3-k}(:, 1), pos_gps(:, 1, j), true)
+                        gps_pos_blocks{i, k}(:, j) = pos_gps(:, 1, j);
+                    else
+                        gps_pos_blocks{i, k}(:, j) = [nan; nan; nan];
                     end
                 end
             end
         end
 
         % 데이터를 파일로 저장
-        save(file_name, 'gps_pos', 'sv_pos', 'sv_vel');
+        save(file_name, 'gps_pos', 'gps_pos_blocks', 'sv_pos', 'sv_vel');
         disp(['데이터가 저장되었습니다: ' file_name]);
     end
 end
@@ -151,6 +168,31 @@ function range = generate_range(pos1, pos2, sigma)
     range = distance + noise;
 end
 
+function is_valid = is_valid_satellite(target_sv, block_sv, gnss_sv, te)
+    elevation_threshold = 0;
+
+    is_valid = true;
+    is_valid = is_valid && (calculate_elevation(target_sv, gnss_sv) > elevation_threshold) ;
+
+    if te
+        is_valid = is_valid && (project_point_to_line(target_sv, block_sv, gnss_sv));
+    end
+end
+
+
+%Non block check => is valid
+function is_within_angle = project_point_to_line(A, B, P)
+    AB = B - A;
+    AP = P - A;
+
+    theta_max = 35;
+
+    cos_theta = dot(AP, AB) / (norm(AP) * norm(AB));
+    angle = acosd(cos_theta);
+
+    is_within_angle = (angle > theta_max);
+end
+
 
 function sv = get_virtual_satellite(scenario, total_tle_number)
     % Ensure the number is between 1 and 4
@@ -173,4 +215,12 @@ end
 
 function sv = get_gps_satellite(sceneario)
     sv = satellite(sceneario, './data/gpsalmanac.txt');
+end
+
+function sv = get_galileo_satellite(sceneario)
+    sv = satellite(sceneario, './data/galileo_tle.txt', "OrbitPropagator", "sgp4");
+end
+
+function sv = get_beidou_satellite(sceneario)
+    sv = satellite(sceneario, './data/beidou_tle.txt', "OrbitPropagator", "sgp4");
 end

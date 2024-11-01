@@ -1,24 +1,61 @@
 %% 초기 변수 설정 (기본값)
 clear;
 
+addpath('./module');
+addpath('./helper');
+addpath('./plot');
 
 
-
-
-sigma_pr = 0.4;
-sigma_range = 0.1;
-r_sigma_pr = 0.4;
-r_sigma_range = 0.1;
-
-%% 시뮬레이션
-
-result_folder = sprintf('./result/result_one');
-if ~exist(result_folder, 'dir')
-    mkdir(result_folder);
+folder_path = sprintf('./result/result_one');
+if ~exist(folder_path, 'dir')
+    mkdir(folder_path);
 end
 
+sigma_pr = 1;
+sigma_range = 0.2;
+r_sigma_pr = sigma_pr;
+r_sigma_range = sigma_range;
 
+%% 시뮬레이션
+num_iterations = 1000;
+sv_num = 2;
 
+%% sigma에 따른 시뮬레이션
+q_value = 6e-2;
 
+dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'nb');
+sv_pos = dataset.sat_positions;
+sv_vel = dataset.sat_velocity;
 
-[kf_error_now, ls_error_now, kf_error_without_range_now] = main_abs_rel_range_tdcp(sigma_pr, sigma_range, r_sigma_pr, r_sigma_range, result_folder, true);
+sigma_range_list = [0.01, 0.1, 0.5];
+
+total_pos = {};
+total_vel = {};
+total_cov = {};
+
+for sigma_range = sigma_range_list
+    dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'nb');
+    [pr_range_pos, pr_range_vel, cov] = run_simulation_with_pr_range(dataset, r_sigma_pr, sigma_range, q_value);
+    total_pos{end+1} = pr_range_pos;
+    total_vel{end+1} = pr_range_vel; 
+    total_cov{end+1} = cov;
+end
+[pr_pos, pr_vel, cov] = run_simulation_with_pr(dataset, r_sigma_pr, q_value);
+total_pos{end+1} = pr_pos;
+total_vel{end+1} = pr_vel; 
+total_cov{end+1} = cov;
+
+[ls_pos, cov] = run_simulation_with_ls_method(dataset);
+total_pos{end+1} = ls_pos;
+total_cov{end+1} = cov;
+
+%% 그래프 Plot
+
+% 정확도 그래프 Plot (Position)
+plot_pos_accuracy;
+
+% 정확도 그래프 Plot (Sigma)
+plot_cov;
+
+% 위성 개수 그래프 Plot (Sigma)
+plot_sat_num;
