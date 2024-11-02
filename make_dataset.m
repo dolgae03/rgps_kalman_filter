@@ -1,5 +1,5 @@
 function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num, data_type)
-    start_time = datetime(2024, 9, 8, 14, 30, 0);
+    start_time = datetime(2024, 10, 30, 12, 7, 0);
 
     times = start_time + seconds((1:num_samples));
 
@@ -81,13 +81,16 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
 
         % GPS 위성을 얻음
         gps_sv = get_gps_satellite(sc)';
-        galileo_sv = get_galileo_satellite(sc)';
-        beidou_sv = get_beidou_satellite(sc)';
+        % galileo_sv = get_galileo_satellite(sc)';
+        % beidou_sv = get_beidou_satellite(sc)';
 
-        total_sv = vertcat(gps_sv, galileo_sv, beidou_sv);
+        total_sv = vertcat(gps_sv);
 
-        % 시뮬레이션 시간 계산
-        times = start_time + seconds((1:num_samples));
+        sample_interval_us = 75;  % 예: 100 밀리초 간격
+        
+        % 시뮬레이션 시간 계산 (밀리초 단위)
+        times = start_time + seconds((0:num_samples+1));
+        atv_times = start_time + seconds((0:num_samples+1) * sample_interval_us * 1e-6);
 
         % v = satelliteScenarioViewer(sc,'ShowDetails',true);
         % play(sc);
@@ -97,14 +100,22 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
         gps_pos = cell(num_samples, leo_sat_num);
         gps_pos_blocks = cell(num_samples, leo_sat_num);
 
+        %% calculate_bias
+
+        [pos1, vel] = states(leo_sv{1}, atv_times(num_samples+1), 'CoordinateFrame', 'ecef');
 
         for i = 1:num_samples
+
             % 각 시점에서 가상 위성 1과 2의 위치를 가져옴
-            for k = 1:leo_sat_num
-                [pos, vel] = states(leo_sv{k}, times(i), 'CoordinateFrame', 'ecef');
-                sv_pos{i, k}(:, 1) = pos;
-                sv_vel{i, k}(:, 1) = vel;
-            end
+            [pos, vel] = states(leo_sv{2}, times(i), 'CoordinateFrame', 'ecef');
+            sv_pos{i, 2}(:, 1) = pos;
+            sv_vel{i, 2}(:, 1) = vel;
+
+            sv_bias = pos - pos1;
+
+            [pos, vel] = states(leo_sv{1}, atv_times(i), 'CoordinateFrame', 'ecef');
+            sv_pos{i, 1}(:, 1) = pos + sv_bias;
+            sv_vel{i, 1}(:, 1) = vel;
 
             pos_gps = states(total_sv, times(i), 'CoordinateFrame', 'ecef');
 
@@ -117,11 +128,18 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
                         gps_pos{i, k}(:, j) = [nan; nan; nan];
                     end
 
-
-                    if is_valid_satellite(sv_pos{i, k}(:, 1), sv_pos{i, 3-k}(:, 1), pos_gps(:, 1, j), true)
-                        gps_pos_blocks{i, k}(:, j) = pos_gps(:, 1, j);
+                    if k == 1
+                        if is_valid_satellite(sv_pos{i, k}(:, 1), sv_pos{i, 3-k}(:, 1), pos_gps(:, 1, j), false)
+                            gps_pos_blocks{i, k}(:, j) = pos_gps(:, 1, j);
+                        else
+                            gps_pos_blocks{i, k}(:, j) = [nan; nan; nan];
+                        end
                     else
-                        gps_pos_blocks{i, k}(:, j) = [nan; nan; nan];
+                        if is_valid_satellite(sv_pos{i, k}(:, 1), sv_pos{i, 3-k}(:, 1), pos_gps(:, 1, j), true)
+                            gps_pos_blocks{i, k}(:, j) = pos_gps(:, 1, j);
+                        else
+                            gps_pos_blocks{i, k}(:, j) = [nan; nan; nan];
+                        end
                     end
                 end
             end
@@ -185,12 +203,12 @@ function is_within_angle = project_point_to_line(A, B, P)
     AB = B - A;
     AP = P - A;
 
-    theta_max = 35;
+    R = 100;
 
-    cos_theta = dot(AP, AB) / (norm(AP) * norm(AB));
-    angle = acosd(cos_theta);
+    mask_angle = atand(R / norm(AB));
+    satellite_angle = acosd(dot(AP, AB) / (norm(AP) * norm(AB)));
 
-    is_within_angle = (angle > theta_max);
+    is_within_angle = (satellite_angle > mask_angle);
 end
 
 

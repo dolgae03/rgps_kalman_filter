@@ -3,13 +3,13 @@ function [pos_sol, vel_sol, cov_sol] = run_simulation_with_pr(dataset, r_sigma_p
     addpath('./module');
     addpath('./helper');
     
-    rng(42)
+    % rng(42)
 
     %% 초기 변수 정의
     SV_NUM = 2;
-    val_num = 16;
+    val_num = 14;
 
-    use_external_force = true;
+    use_external_force = false;
     
     % 데이터를 저장할 배열
     sv_pos = dataset.sat_positions;
@@ -22,7 +22,7 @@ function [pos_sol, vel_sol, cov_sol] = run_simulation_with_pr(dataset, r_sigma_p
 
     kalman_filter_list = cell(SV_NUM, 1);
 
-    inital_P_sigma = 20;
+    inital_P_sigma = 1;
 
     for k = 1:SV_NUM-1
         init_x = zeros(val_num, 1);
@@ -30,9 +30,9 @@ function [pos_sol, vel_sol, cov_sol] = run_simulation_with_pr(dataset, r_sigma_p
         init_x(4:6, 1) = sv_vel{1,k}(:, 1) + [randn; randn; randn] .* inital_P_sigma;
         init_x(7, 1) = 3 + randn * inital_P_sigma;
         
-        init_x(9:11, 1) = (sv_pos{1,k+1}(:, 1) - sv_pos{1,k}(:, 1)) + [randn; randn; randn] .* inital_P_sigma;
-        init_x(12:14, 1) = (sv_vel{1,k+1}(:, 1) - sv_vel{1,k}(:, 1))  + [randn; randn; randn] .* inital_P_sigma;
-        init_x(15, 1) = randn * inital_P_sigma;
+        init_x(8:10, 1) = (sv_pos{1,k+1}(:, 1) - sv_pos{1,k}(:, 1)) + [randn; randn; randn] .* inital_P_sigma;
+        init_x(11:13, 1) = (sv_vel{1,k+1}(:, 1) - sv_vel{1,k}(:, 1))  + [randn; randn; randn] .* inital_P_sigma;
+        init_x(14, 1) = randn * inital_P_sigma;
         
         init_P = inital_P_sigma * eye(val_num);
         
@@ -45,7 +45,15 @@ function [pos_sol, vel_sol, cov_sol] = run_simulation_with_pr(dataset, r_sigma_p
         for k = 1:SV_NUM-1
             dt = 1;
             for update_idx = 1:1/dt
-                Q = q_value * eye(val_num);
+                a = 1;
+                pos_q = 1 * ones(3, 1);
+                vel_q = 1e1 * ones(3, 1);
+                bias_1 = 1e-3 * ones(1, 1);
+
+                q_v = a * [pos_q; vel_q; bias_1; pos_q; vel_q; bias_1];
+                q_v = [pos_q; vel_q; bias_1; pos_q; vel_q; bias_1];
+
+                Q = diag(q_v);
                 kalman_filter_list{k} = kalman_filter_list{k}.predict(Q, 1);
             end
         end
@@ -83,7 +91,7 @@ function [pos_sol, vel_sol, cov_sol] = run_simulation_with_pr(dataset, r_sigma_p
         end
     end
     
-    pos_sol = kalman_filter_list{1}.inital_log(9:11, :);
-    vel_sol = kalman_filter_list{1}.inital_log(12:14, :);
-    cov_sol = kalman_filter_list{1}.cov_log(9:11, 9:11, 2:end);
+    pos_sol = kalman_filter_list{1}.inital_log(8:10, :);
+    vel_sol = kalman_filter_list{1}.inital_log(11:13, :);
+    cov_sol = kalman_filter_list{1}.cov_log(8:10, 8:10, 2:end);
 end

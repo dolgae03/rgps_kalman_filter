@@ -1,7 +1,7 @@
 clear;
 
-sigma_pr_values = 0.01:0.3:1;  % sigma_pr의 변화 범위
-sigma_range_values = 0.01:0.2:0.4;  % sigma_range의 변화 범위
+sigma_pr_values = 0.01:0.02:1;  % sigma_pr의 변화 범위
+sigma_range_values = 0.01:0.01:0.5;  % sigma_range의 변화 범위
 
 % 결과 폴더 설정
 result_folder = './result/contour';  % 원하는 폴더 경로 설정
@@ -13,6 +13,8 @@ end
 %% 시뮬레이션s
 num_iterations = 1000;
 convergence_idx = 300;
+
+
 sv_num = 2;
 
 %% sigma에 따른 시뮬레이션
@@ -22,7 +24,7 @@ q_value = 1;
 true_position = [];
 
 target_sv = 1;
-dataset = make_dataset(num_iterations, 3, 3, 2);
+dataset = make_dataset(num_iterations, 3, 3, 2, 'b');
 sv_pos = dataset.sat_positions;
 sv_vel = dataset.sat_velocity;
 
@@ -34,6 +36,7 @@ end
 
 % 결과 저장을 위한 Z 행렬 초기화
 kf_error = zeros(length(sigma_pr_values), length(sigma_range_values));
+kf_cov_value = zeros(length(sigma_pr_values), length(sigma_range_values));
 
 
 for i = 1:length(sigma_pr_values)
@@ -41,7 +44,7 @@ for i = 1:length(sigma_pr_values)
         sigma_pr = sigma_pr_values(i);
         sigma_range = sigma_range_values(j);
 
-        dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2);
+        dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b');
 
         [pr_range_pos, pr_range_vel, cov] = run_simulation_with_pr_range(dataset, sigma_pr, sigma_range, q_value);
         
@@ -53,7 +56,17 @@ for i = 1:length(sigma_pr_values)
         
         total_error = mean(sqrt(error_x.^2 + error_y.^2 + error_z.^2));
 
+        kf_cov_error(i, j) = total_error;
+
         kf_error(i, j) = total_error;
+
+        x = cov(1, 1, :);
+        y = cov(2, 2, :);
+        z = cov(3, 3, :);
+
+        res = mean(sqrt(x+y+z));
+        
+        kf_error(i, j) = res * 2;
     end
 end
 
@@ -61,14 +74,30 @@ end
 clf;
 
 fig = figure(1);
+fig.Color = "white";
 
 % 첫 번째 subplot - KF Error contour plot
-contourf(sigma_pr_values, sigma_range_values, kf_error', 'ShowText', 'on');  % 등고선 간격을 0.1로 설정
+subplot(1, 2, 1); % 1행 2열의 subplot 중 첫 번째
+contour_levels_error = linspace(min(kf_error(:)), max(kf_error(:)), 30);  % 20개 레벨로 설정
+contourf(sigma_range_values, sigma_pr_values, kf_error, contour_levels_error);
 colorbar;
-xlabel('\sigma_{pr}', 'FontSize', 12);
-ylabel('\sigma_{range}', 'FontSize', 12);
-title('Contour of KF Error', 'FontSize', 14);
+xlabel('Sigma ISL', 'FontSize', 14, 'FontWeight', 'bold');  % Bold and font size increased
+ylabel('Sigma PR', 'FontSize', 14, 'FontWeight', 'bold');
+title('Accuracy Senstivity', 'FontSize', 16, 'FontWeight', 'bold'); % Bold title
+set(gca, 'FontSize', 20);  % 축 글꼴 크기 및 두께 설정
 
+
+% 두 번째 subplot - KF Covariance contour plot
+subplot(1, 2, 2); % 1행 2열의 subplot 중 두 번째
+contour_levels_cov = linspace(min(kf_cov_error(:)), max(kf_cov_error(:)), 30);  % 20개 레벨로 설정
+contourf(sigma_range_values, sigma_pr_values, kf_cov_error, contour_levels_cov);
+colorbar;
+xlabel('Sigma ISL', 'FontSize', 14, 'FontWeight', 'bold');  % Bold and font size increased
+ylabel('Sigma PR', 'FontSize', 14, 'FontWeight', 'bold');
+title('STD Senstivity', 'FontSize', 16, 'FontWeight', 'bold'); % Bold title
+
+% 축과 라벨의 글꼴 크기 및 두께 설정
+set(gca, 'FontSize', 20);  % 축 글꼴 크기 및 두께 설정
 
 % 그래프 저장
 fig_file_name = 'Contour_KF_vs_LS_Error.fig';

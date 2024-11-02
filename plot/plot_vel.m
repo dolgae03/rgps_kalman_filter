@@ -1,7 +1,7 @@
 
 %% 3D RMS Error 계산
-convergence_idx = 400;
-end_num = 1000;
+convergence_idx = 100;
+end_num = 300;
 
 %% True Position 정의
 true_position = [];
@@ -9,35 +9,36 @@ true_velocity = [];
 
 target_sv = 1;
 
-for i = convergence_idx:end_num
+for i = 1:end_num
     true_position(:, i) = sv_pos{i, target_sv + 1} - sv_pos{i, target_sv};
     true_velocity(:, i) = sv_vel{i, target_sv + 1} - sv_vel{i, target_sv};
 end
+
+true_velocity = true_velocity  * 75 * 1e-6;
 
 time = convergence_idx:end_num;
 total_error = {};
 
 legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_range_list, 'UniformOutput', false);
 legend_strings{end+1} = 'EKF-Pesudorange Only';
-legend_strings{end+1} = 'LS';
 
 % %% File WKRTJD
 % 
 % % SIGMA_PR 및 SIGMA_RANGE 변수를 파일 이름에 포함시키기 위한 문자열 생성
 fig_file_pos_path = fullfile(folder_path, ...
-                            sprintf('result_pos.fig'));
+                            sprintf('result_vel.fig'));
 txt_file_pos_path = fullfile(folder_path, ...
-                            sprintf('result_pos.txt'));
+                            sprintf('result_vel.txt'));
 % 
 % % 최종 RMS error 계산 및 출력
 fileID = fopen(txt_file_pos_path, 'w');  % 'w' 모드는 파일에 쓰기
 
-for i=1:length(total_pos)
-    estimated_position = total_pos{i};
+for i=1:length(total_vel)
+    estimated_position = total_vel{i};
     
-    error_x = abs(true_position(1, convergence_idx:end_num) - estimated_position(1, convergence_idx:end_num));
-    error_y = abs(true_position(2, convergence_idx:end_num) - estimated_position(2, convergence_idx:end_num));
-    error_z = abs(true_position(3, convergence_idx:end_num) - estimated_position(3, convergence_idx:end_num));
+    error_x = abs(true_velocity(1, convergence_idx:end_num) - estimated_position(1, convergence_idx:end_num));
+    error_y = abs(true_velocity(2, convergence_idx:end_num) - estimated_position(2, convergence_idx:end_num));
+    error_z = abs(true_velocity(3, convergence_idx:end_num) - estimated_position(3, convergence_idx:end_num));
     
     total_error{end+1} = sqrt(error_x.^2 + error_y.^2 + error_z.^2);
 
@@ -51,7 +52,7 @@ fclose(fileID);
 
 %% 그림 그리기 
 
-fig = figure(4);  % 'Visible', 'off'로 설정하여 창을 띄우지 않음
+fig = figure(8);  % 'Visible', 'off'로 설정하여 창을 띄우지 않음
 clf;
 fig.Color = "white";
 hold on;
@@ -78,7 +79,7 @@ set(lgd, 'FontSize', 24, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두�
 % 축과 라벨의 글꼴 크기 및 두께 설정
 set(gca, 'FontSize', 24);  % 축 글꼴 크기 및 두께 설정
 xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
-ylabel('Error (meters)', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
+ylabel('Error (m/s)', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
 
 xlim([convergence_idx, end_num])
 grid on;

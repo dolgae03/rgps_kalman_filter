@@ -5,9 +5,9 @@ time = convergence_idx:num_iterations;
 total_cov_plot = {};
 
 legend_strings = {};
-legend_strings{end+1} = 'Satellite 1' ;
-legend_strings{end+1} = 'Satellite 2';
-legend_strings{end+1} = 'Satellite 1, 2';
+legend_strings{end+1} = 'Target (ISS)' ;
+legend_strings{end+1} = 'Chaser (ATV)';
+legend_strings{end+1} = 'Intersection';
 
 % %% File WKRTJD
 % 
@@ -70,7 +70,7 @@ xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴
 ylabel('# of Satellite', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
 
 xlim([convergence_idx, num_iterations])
-ylim([33, 48])
+% ylim([33, 48])
 grid on;
 
 % FIG 파일 저장

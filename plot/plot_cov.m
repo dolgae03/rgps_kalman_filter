@@ -82,7 +82,7 @@ end
 
 % 왼쪽 Y축 라벨 설정
 ylabel('Standard Deviation (meters)', 'FontSize', 24, 'FontWeight', 'bold', 'Color', 'k');  
-ylim([0, 2.5])
+% ylim([0, 2.5])
 set(gca, 'YColor', 'k');  %
 
 % 오른쪽 Y축: Sat Num
@@ -103,7 +103,7 @@ set(gca, 'YColor', 'r');  %
 
 % X축 제한
 xlim([convergence_idx, num_iterations])
-ylim([43, 52])
+% ylim([43, 52])
 
 grid on;
 

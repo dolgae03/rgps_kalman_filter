@@ -21,20 +21,20 @@ num_iterations = 1000;
 sv_num = 2;
 
 %% sigma에 따른 시뮬레이션
-q_value = 6e-2;
-
-dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'nb');
+dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b');
 sv_pos = dataset.sat_positions;
 sv_vel = dataset.sat_velocity;
 
-sigma_range_list = [0.01, 0.1, 0.5];
+sigma_range_list = [0.0000001, 0.1, 0.5];
+
+q_value = 3;
 
 total_pos = {};
 total_vel = {};
 total_cov = {};
 
 for sigma_range = sigma_range_list
-    dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'nb');
+    dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b');
     [pr_range_pos, pr_range_vel, cov] = run_simulation_with_pr_range(dataset, r_sigma_pr, sigma_range, q_value);
     total_pos{end+1} = pr_range_pos;
     total_vel{end+1} = pr_range_vel; 
@@ -50,6 +50,11 @@ total_pos{end+1} = ls_pos;
 total_cov{end+1} = cov;
 
 %% 그래프 Plot
+% 위성의 Position Accuracy
+save_pos_accuracy;
+
+% 대충 그리기 
+plot_true_position;
 
 % 정확도 그래프 Plot (Position)
 plot_pos_accuracy;
@@ -59,3 +64,7 @@ plot_cov;
 
 % 위성 개수 그래프 Plot (Sigma)
 plot_sat_num;
+
+% 위성 Velocity Plot
+plot_vel;
+
