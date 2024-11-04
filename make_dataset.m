@@ -1,4 +1,4 @@
-function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num, data_type)
+function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num, data_type, constellation)
     start_time = datetime(2024, 10, 30, 12, 7, 0);
 
     times = start_time + seconds((1:num_samples));
@@ -7,7 +7,7 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num, data
     carrier_mes = cell(num_samples, sv_num);
     range_mes = cell(num_samples, sv_num);
 
-    [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, sv_num, data_type);
+    [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, sv_num, data_type, constellation);
     
     for i = 1:num_samples
         for k = 1:sv_num
@@ -45,14 +45,14 @@ function dataset = make_dataset(num_samples, sigma_pr, sigma_range, sv_num, data
     dataset.times = times;
 end
 
-function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, leo_sat_num, data_type)
+function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples, leo_sat_num, data_type, constellation)
     % 파일 이름 생성
     folder_name = './data/position_data';
     if ~exist(folder_name, 'dir')
         mkdir(folder_name);  % data 폴더가 없으면 생성
     end
     % 날짜와 샘플 수 기반으로 파일 이름 생성
-    file_name = sprintf('%s/position_velocity_data_%s_%d_%d.mat', folder_name, datestr(start_time, 'yyyymmdd_HHMMSS'), num_samples, leo_sat_num);
+    file_name = sprintf('%s/position_velocity_data_%s_%d_%d_%d.mat', folder_name, datestr(start_time, 'yyyymmdd_HHMMSS'), num_samples, leo_sat_num, constellation);
     
     % 파일이 존재하는지 확인
     if exist(file_name, 'file')
@@ -80,11 +80,15 @@ function [gps_pos, sv_pos, sv_vel] = make_position_data(start_time, num_samples,
         leo_sv = get_virtual_satellite(sc, leo_sat_num);
 
         % GPS 위성을 얻음
-        gps_sv = get_gps_satellite(sc)';
-        % galileo_sv = get_galileo_satellite(sc)';
-        % beidou_sv = get_beidou_satellite(sc)';
-
-        total_sv = vertcat(gps_sv);
+        
+        if constellation == 0
+            gps_sv = get_gps_satellite(sc)';
+            total_sv = vertcat(gps_sv);
+        elseif constellation == 1
+            gps_sv = get_gps_satellite(sc)';
+            galileo_sv = get_galileo_satellite(sc)';
+            total_sv = vertcat(gps_sv, galileo_sv);
+        end
 
         sample_interval_us = 75;  % 예: 100 밀리초 간격
         

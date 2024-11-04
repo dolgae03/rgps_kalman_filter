@@ -19,8 +19,6 @@ total_error = {};
 
 legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_range_list, 'UniformOutput', false);
 legend_strings{end+1} = 'EKF-Pesudorange Only';
-legend_strings{end+1} = 'LS';
-
 % %% File WKRTJD
 % 
 % % SIGMA_PR 및 SIGMA_RANGE 변수를 파일 이름에 포함시키기 위한 문자열 생성
@@ -73,12 +71,12 @@ end
 
 % 동적으로 생성된 legend 적용 및 위치 설정, LaTeX 해석을 사용
 lgd = legend(p, legend_strings, 'Location', 'northeast', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
-set(lgd, 'FontSize', 24, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
+set(lgd, 'FontSize', 18, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
 
 % 축과 라벨의 글꼴 크기 및 두께 설정
-set(gca, 'FontSize', 24);  % 축 글꼴 크기 및 두께 설정
-xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
-ylabel('Error (meters)', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
+set(gca, 'FontSize', 18);  % 축 글꼴 크기 및 두께 설정
+xlabel('Time step', 'FontSize', 18, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
+ylabel('Error (meters)', 'FontSize', 18, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
 
 xlim([convergence_idx, end_num])
 grid on;

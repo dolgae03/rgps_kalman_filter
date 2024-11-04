@@ -3,7 +3,7 @@ function [pos_sol, vel_sol, cov_sol] = run_simulation_with_pr(dataset, r_sigma_p
     addpath('./module');
     addpath('./helper');
     
-    % rng(42)
+    rng(42)
 
     %% 초기 변수 정의
     SV_NUM = 2;

@@ -61,17 +61,28 @@ end
 
 % 동적으로 생성된 legend 적용 및 위치 설정, LaTeX 해석을 사용
 lgd = legend(p, legend_strings, 'Location', 'northwest', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
-set(lgd, 'FontSize', 24, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
+set(lgd, 'FontSize', 18, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
 
 % 축과 라벨의 글꼴 크기 및 두께 설정
-set(gca, 'FontSize', 24);  % 축 글꼴 크기 및 두께 설정
+set(gca, 'FontSize', 18);  % 축 글꼴 크기 및 두께 설정
 set(gca, 'YTick', 0:max(max(visable_sat_mat)) + 3);  
-xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
-ylabel('# of Satellite', 'FontSize', 24, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
+xlabel('Time step', 'FontSize', 18, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
+ylabel('# of Satellite', 'FontSize', 18, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
 
 xlim([convergence_idx, num_iterations])
 % ylim([33, 48])
 grid on;
+% 위쪽 x축 추가
+ax1 = gca;  % 현재 축을 저장
+ax1_pos = ax1.Position;  % 첫 번째 축의 위치 저장
 
+% 새로운 x축을 위한 축 객체 생성
+ax2 = axes('Position', ax1_pos, 'XAxisLocation', 'top', 'Color', 'none');
+ax2.XLim = ax1.XLim;  % x축 범위를 기존 x축과 동일하게 설정
+ax2.YColor = 'none';  % y축 라벨 제거
+
+% 거리 라벨 설정 (557에서 3까지의 거리 범위)
+set(ax2, 'XTickLabel', round(linspace(557, 7, 5)));  % x축 라벨을 거리 값으로 표시
+set(gca, 'FontSize', 18);  % 축 글꼴 크기 및 두께 설정
 % FIG 파일 저장
 savefig(fig, fig_file_pos_path);

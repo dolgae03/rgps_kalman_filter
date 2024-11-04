@@ -3,10 +3,12 @@
 convergence_idx = 1;
 time = convergence_idx:num_iterations;
 total_cov_plot = {};
+total_cov_plot_multi = {};
 
-legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_range_list, 'UniformOutput', false);
-legend_strings{end+1} = 'EKF-Pesudorange Only';
-legend_strings{end+1} = 'LS';
+legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)(GPS)', x), sigma_range_list, 'UniformOutput', false);
+legend_strings{end+1} = 'EKF-Pesudorange Only(GPS)';
+legend_strings{end+1} = 'EKF-ISL($\\sigma = 0.40$m)(GPS+GAL)';
+% legend_strings{end+1} = 'LS';
 
 % %% File WKRTJD
 % 
@@ -42,9 +44,31 @@ end
 
 fclose(fileID);
 
+
+% 
+% % 최종 RMS error 계산 및 출력
+fileID = fopen(txt_file_pos_path, 'w');  % 'w' 모드는 파일에 쓰기
+
+for i=1:length(total_cov_multi)
+    estimated_cov = total_cov_multi{i};
+    
+    estimated_position = []
+    for j=1:size(estimated_cov, 3)
+        estimated_position(:,j) = diag(estimated_cov(1:3, 1:3, j));
+    end
+    
+    error_x = sqrt(estimated_position(1, convergence_idx:end)) * 2;
+    error_y = sqrt(estimated_position(2, convergence_idx:end)) * 2;
+    error_z = sqrt(estimated_position(3, convergence_idx:end)) * 2;
+    
+    total_cov_plot{end+1} = sqrt(error_x.^2 + error_y.^2 + error_z.^2);
+end
+
 %% Visable Satellite Num 표시
+dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b', 0);
 pr_mes = dataset.pr_mes;
 visable_sat_mat = [];
+
 
 idx = 1;
 
@@ -52,6 +76,19 @@ for i = time
     visable_sat_mat(1, idx) = sum(~isnan(pr_mes{i, 1}));
     visable_sat_mat(2, idx) = sum(~isnan(pr_mes{i, 2}));
     visable_sat_mat(3, idx) = sum(~isnan(pr_mes{i, 1}) & ~isnan(pr_mes{i, 2}));
+    idx = idx + 1;
+end
+
+dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b', 1);
+pr_mes = dataset.pr_mes;
+visable_sat_mat_multi = [];
+
+idx = 1;
+
+for i = time
+    visable_sat_mat_multi(1, idx) = sum(~isnan(pr_mes{i, 1}));
+    visable_sat_mat_multi(2, idx) = sum(~isnan(pr_mes{i, 2}));
+    visable_sat_mat_multi(3, idx) = sum(~isnan(pr_mes{i, 1}) & ~isnan(pr_mes{i, 2}));
     idx = idx + 1;
 end
 
@@ -81,29 +118,32 @@ end
 
 
 % 왼쪽 Y축 라벨 설정
-ylabel('Standard Deviation (meters)', 'FontSize', 24, 'FontWeight', 'bold', 'Color', 'k');  
+ylabel('Standard Deviation (meters)', 'FontSize', 18, 'FontWeight', 'bold', 'Color', 'k');  
 % ylim([0, 2.5])
 set(gca, 'YColor', 'k');  %
 
 % 오른쪽 Y축: Sat Num
 yyaxis right
 stairs(time, visable_sat_mat(3, :), 'Color', 'r', 'LineStyle', '--', 'LineWidth', 4);  % 실선 스타일, 마커 없음
-ylabel('# of Satellite', 'FontSize', 24, 'FontWeight', 'bold', 'Color', 'r');  % 오른쪽 Y축 라벨 (빨간색)
+hold on;
+stairs(time, visable_sat_mat_multi(3, :), 'Color', 'r', 'LineStyle', '-.', 'LineWidth', 4);  % 실선 스타일, 마커 없음
+hold on;
+ylabel('# of Satellite', 'FontSize', 18, 'FontWeight', 'bold', 'Color', 'r');  % 오른쪽 Y축 라벨 (빨간색)
 
 
 % 축과 라벨의 글꼴 크기 및 두께 설정
-set(gca, 'FontSize', 24);  % 축 글꼴 크기 및 두께 설정
-xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
+set(gca, 'FontSize', 18);  % 축 글꼴 크기 및 두께 설정
+xlabel('Time step', 'FontSize', 18, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
 
 % 동적으로 생성된 legend 적용 및 위치 설정, LaTeX 해석을 사용
 lgd = legend(p, legend_strings, 'Location', 'northeast', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
-set(lgd, 'FontSize', 24, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
+set(lgd, 'FontSize', 18, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
 set(gca, 'YColor', 'r');  %
 
 
 % X축 제한
 xlim([convergence_idx, num_iterations])
-% ylim([43, 52])
+ylim([3.5, 30])
 
 grid on;
 
