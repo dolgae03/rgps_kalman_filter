@@ -4,10 +4,12 @@ convergence_idx = 1;
 time = convergence_idx:num_iterations;
 total_cov_plot = {};
 total_cov_plot_multi = {};
+legend_strings = {};
 
-legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)(GPS)', x), sigma_range_list, 'UniformOutput', false);
+legend_strings{end+1} = 'EKF-ISL($\sigma = 0.40$m)(GPS+GAL)';
+legend_strings{end+1} = 'EKF-ISL($\sigma = 0.40$m)(GPS)';
 legend_strings{end+1} = 'EKF-Pesudorange Only(GPS)';
-legend_strings{end+1} = 'EKF-ISL($\\sigma = 0.40$m)(GPS+GAL)';
+
 % legend_strings{end+1} = 'LS';
 
 % %% File WKRTJD
@@ -18,7 +20,22 @@ fig_file_pos_path = fullfile(folder_path, ...
 
 txt_file_pos_path = fullfile(folder_path, ...
                             sprintf('result_sigma.txt'));
-% 
+
+for i=1:1
+    estimated_cov = total_cov_multi{i};
+    
+    estimated_position = []
+    for j=1:size(estimated_cov, 3)
+        estimated_position(:,j) = diag(estimated_cov(1:3, 1:3, j));
+    end
+    
+    error_x = sqrt(estimated_position(1, convergence_idx:end)) * 2;
+    error_y = sqrt(estimated_position(2, convergence_idx:end)) * 2;
+    error_z = sqrt(estimated_position(3, convergence_idx:end)) * 2;
+    
+    total_cov_plot{end+1} = sqrt(error_x.^2 + error_y.^2 + error_z.^2);
+end
+
 % % 최종 RMS error 계산 및 출력
 fileID = fopen(txt_file_pos_path, 'w');  % 'w' 모드는 파일에 쓰기
 
@@ -44,25 +61,6 @@ end
 
 fclose(fileID);
 
-
-% 
-% % 최종 RMS error 계산 및 출력
-fileID = fopen(txt_file_pos_path, 'w');  % 'w' 모드는 파일에 쓰기
-
-for i=1:length(total_cov_multi)
-    estimated_cov = total_cov_multi{i};
-    
-    estimated_position = []
-    for j=1:size(estimated_cov, 3)
-        estimated_position(:,j) = diag(estimated_cov(1:3, 1:3, j));
-    end
-    
-    error_x = sqrt(estimated_position(1, convergence_idx:end)) * 2;
-    error_y = sqrt(estimated_position(2, convergence_idx:end)) * 2;
-    error_z = sqrt(estimated_position(3, convergence_idx:end)) * 2;
-    
-    total_cov_plot{end+1} = sqrt(error_x.^2 + error_y.^2 + error_z.^2);
-end
 
 %% Visable Satellite Num 표시
 dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b', 0);
