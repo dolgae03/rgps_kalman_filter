@@ -191,7 +191,7 @@ function range = generate_range(pos1, pos2, sigma)
 end
 
 function is_valid = is_valid_satellite(target_sv, block_sv, gnss_sv, te)
-    elevation_threshold = 0;
+    elevation_threshold = 5;
 
     is_valid = true;
     is_valid = is_valid && (calculate_elevation(target_sv, gnss_sv) > elevation_threshold) ;

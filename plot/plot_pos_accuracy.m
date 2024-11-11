@@ -17,8 +17,9 @@ end
 time = convergence_idx:end_num;
 total_error = {};
 
-legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_range_list, 'UniformOutput', false);
-legend_strings{end+1} = 'EKF-Pesudorange Only';
+legend_strings = {};
+legend_strings = arrayfun(@(x) sprintf('ISL/RGPS(GPS)'), sigma_range_list, 'UniformOutput', false);
+legend_strings{end+1} = 'RGPS Only(GPS)';
 % %% File WKRTJD
 % 
 % % SIGMA_PR 및 SIGMA_RANGE 변수를 파일 이름에 포함시키기 위한 문자열 생성
@@ -55,30 +56,32 @@ fig.Color = "white";
 hold on;
 
 % 색상 맵 설정 (기본 'lines' 컬러 맵 사용)
-colors = lines(length(total_error));  % sigma_idx 개의 다양한 색상 생성
+colors = [0.85,0.33,0.10;
+          0.00,0.45,0.74];  % sigma_idx 개의 다양한 색상 생성
 
 % 실제 플롯
 for i = 1:length(total_error)
-    plot(time, total_error{i}, 'Color', colors(i, :), 'LineWidth', 2);  % 얇은 실제 선
+    plot(time, total_error{i}, 'Color', colors(i, :), 'LineWidth', 1.5);  % 얇은 실제 선
     hold on;
 end
 
 % 범례에 표시하기 위한 더 굵은 선 (실제 플롯에 영향 없음)
 for i = 1:length(total_error)
-    p(i) = plot(nan, nan, 'Color', colors(i, :), 'LineWidth', 3);  % 굵은 선을 범례에만 추가
+    p(i) = plot(nan, nan, 'Color', colors(i, :), 'LineWidth', 2);  % 굵은 선을 범례에만 추가
     hold on;
 end
 
 % 동적으로 생성된 legend 적용 및 위치 설정, LaTeX 해석을 사용
 lgd = legend(p, legend_strings, 'Location', 'northeast', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
-set(lgd, 'FontSize', 18, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
+set(lgd, 'FontSize', 14, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
 
 % 축과 라벨의 글꼴 크기 및 두께 설정
-set(gca, 'FontSize', 18);  % 축 글꼴 크기 및 두께 설정
-xlabel('Time step', 'FontSize', 18, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
-ylabel('Error (meters)', 'FontSize', 18, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
+set(gca, 'FontSize', 14);  % 축 글꼴 크기 및 두께 설정
+xlabel('Time step (s)', 'FontSize', 14, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
+ylabel('3D RMS Error (m)', 'FontSize', 14, 'FontWeight', 'bold');  % Y축 라벨 글꼴 크기 및 두께 설정
 
 xlim([convergence_idx, end_num])
+ylim([0, 8])
 grid on;
 % FIG 파일 저장
 savefig(fig, fig_file_pos_path);

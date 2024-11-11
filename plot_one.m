@@ -77,7 +77,8 @@ plot_true_position;
 plot_pos_accuracy;
 
 % 정확도 그래프 Plot (Sigma)
-plot_cov;
+plot_cov_gal;
+plot_cov_gps;
 
 % 위성 개수 그래프 Plot (Sigma)
 plot_sat_num;
