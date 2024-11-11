@@ -45,7 +45,7 @@ x_pred(4,1) = 0;
 err = 1;
 
 % Repeat until convergence
-while err > 1e-7
+while err > 5e-7
     
     % Loop measurements
     for j = 1:N

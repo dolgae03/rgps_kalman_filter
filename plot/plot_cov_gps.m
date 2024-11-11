@@ -3,20 +3,26 @@
 convergence_idx = 1;
 time = convergence_idx:num_iterations;
 total_cov_plot = {};
+total_cov_plot_multi = {};
+legend_strings = {};
 
-legend_strings = arrayfun(@(x) sprintf('EKF-ISL($\\sigma = %.2f$m)', x), sigma_range_list, 'UniformOutput', false);
-legend_strings{end+1} = 'EKF-Pesudorange Only';
-legend_strings{end+1} = 'LS';
+legend_strings = {};
+
+legend_strings{end+1} = sprintf('ISL/RGPS(GPS)');
+legend_strings{end+1} = 'RGPS Only(GPS)';
+legend_strings{end+1} = 'Visable GPS';
+
+% legend_strings{end+1} = 'LS';
 
 % %% File WKRTJD
 % 
 % % SIGMA_PR 및 SIGMA_RANGE 변수를 파일 이름에 포함시키기 위한 문자열 생성
 fig_file_pos_path = fullfile(folder_path, ...
-                            sprintf('result_sigma.fig'));
+                            sprintf('result_sigma_gps.fig'));
 
 txt_file_pos_path = fullfile(folder_path, ...
-                            sprintf('result_sigma.txt'));
-% 
+                            sprintf('result_sigma_gps.txt'));
+
 % % 최종 RMS error 계산 및 출력
 fileID = fopen(txt_file_pos_path, 'w');  % 'w' 모드는 파일에 쓰기
 
@@ -42,9 +48,12 @@ end
 
 fclose(fileID);
 
+
 %% Visable Satellite Num 표시
+dataset = make_dataset(num_iterations, sigma_pr, sigma_range, 2, 'b', 0);
 pr_mes = dataset.pr_mes;
 visable_sat_mat = [];
+
 
 idx = 1;
 
@@ -54,7 +63,6 @@ for i = time
     visable_sat_mat(3, idx) = sum(~isnan(pr_mes{i, 1}) & ~isnan(pr_mes{i, 2}));
     idx = idx + 1;
 end
-
 %% 그림 그리기 
 
 fig = figure(5);  % 'Visible', 'off'로 설정하여 창을 띄우지 않음
@@ -63,47 +71,50 @@ fig.Color = "white";
 hold on;
 
 % 색상 맵 설정 (기본 'lines' 컬러 맵 사용)
-colors = lines(length(total_cov_plot));  % sigma_idx 개의 다양한 색상 생성
+colors = [0.85,0.33,0.10;
+          0.00,0.45,0.74];  % sigma_idx 개의 다양한 색상 생성
 
 % 왼쪽 Y축: Standard Deviation
 yyaxis left
 for i = 1:length(total_cov_plot)
-    h(i) = plot(time, total_cov_plot{i}, 'Color', colors(i, :), 'LineStyle', '-', 'Marker', 'none','LineWidth', 2.5);  % 실선 스타일, 마커 없음
+    h(i) = plot(time, total_cov_plot{i}, 'Color', colors(i, :), 'LineStyle', '-', 'Marker', 'none','LineWidth', 2);  % 실선 스타일, 마커 없음
     hold on;
 end
 
 % 범례에 표시하기 위한 더 굵은 선 (실제 플롯에 영향 없음)
 for i = 1:length(total_cov_plot)
-    p(i) = plot(nan, nan, 'Color', colors(i, :), 'LineStyle', '-', 'Marker', 'none', 'LineWidth', 2);  % 범례용 굵은 실선, 마커 없음
+    p_cov_gps(i) = plot(nan, nan, 'Color', colors(i, :), 'LineStyle', '-', 'Marker', 'none', 'LineWidth', 2);  % 범례용 굵은 실선, 마커 없음
     hold on;
 end
 
-
+p_cov_gps(end+1) = plot(nan, nan, 'Color', [1.00,0.00,0.00], 'LineStyle', '--','Marker', 'none', 'LineWidth', 2);  % 범례용 굵은 실선, 마커 없음
+    
 
 % 왼쪽 Y축 라벨 설정
-ylabel('Standard Deviation (meters)', 'FontSize', 24, 'FontWeight', 'bold', 'Color', 'k');  
-ylim([0, 2.5])
+ylabel('95% Accuracy (m)', 'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k');  
+ylim([1, 8])
 set(gca, 'YColor', 'k');  %
 
 % 오른쪽 Y축: Sat Num
 yyaxis right
-stairs(time, visable_sat_mat(3, :), 'Color', 'r', 'LineStyle', '--', 'LineWidth', 4);  % 실선 스타일, 마커 없음
-ylabel('# of Satellite', 'FontSize', 24, 'FontWeight', 'bold', 'Color', 'r');  % 오른쪽 Y축 라벨 (빨간색)
+stairs(time, visable_sat_mat(3, :), 'Color', 'r', 'LineStyle', '--', 'LineWidth', 2);  % 실선 스타일, 마커 없음
+hold on;
+ylabel('# of Satellite', 'FontSize', 14, 'FontWeight', 'bold', 'Color', 'r');  % 오른쪽 Y축 라벨 (빨간색)
 
 
 % 축과 라벨의 글꼴 크기 및 두께 설정
-set(gca, 'FontSize', 24);  % 축 글꼴 크기 및 두께 설정
-xlabel('Time step', 'FontSize', 24, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
+set(gca, 'FontSize', 14);  % 축 글꼴 크기 및 두께 설정
+xlabel('Time step (s)', 'FontSize', 14, 'FontWeight', 'bold');  % X축 라벨 글꼴 크기 및 두께 설정
 
 % 동적으로 생성된 legend 적용 및 위치 설정, LaTeX 해석을 사용
-lgd = legend(p, legend_strings, 'Location', 'northeast', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
-set(lgd, 'FontSize', 24, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
+lgd = legend(p_cov_gps, legend_strings, 'Location', 'northeast', 'Interpreter', 'latex');  % 범례에 LaTeX 적용
+set(lgd, 'FontSize', 14, 'FontWeight', 'bold');  % 범례 글꼴 크기와 두께 설정
 set(gca, 'YColor', 'r');  %
 
 
 % X축 제한
 xlim([convergence_idx, num_iterations])
-ylim([43, 52])
+ylim([0, 16])
 
 grid on;
 

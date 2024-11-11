@@ -3,7 +3,7 @@ function [ls_result, coverience] = run_simulation_with_ls_method(dataset)
     addpath('./module');
     addpath('./helper');
     
-    rng(42)
+    % rng(42)
 
     %% 초기 변수 정의
     SV_NUM = 2;
@@ -24,8 +24,15 @@ function [ls_result, coverience] = run_simulation_with_ls_method(dataset)
             mes1 = pr_mes{i, k}(valid_indices_pr);
             mes2 = pr_mes{i, k+1}(valid_indices_pr);
 
-            gps_pos_k = gps_pos{i, k}(:, valid_indices_pr);
+            if length(mes1) < 4
+                ls_position(:, i) = [nan; nan; nan; nan];
+                coverience(:, :, i) = total_cov(1:3, 1:3);
+                continue;
+            
+            end
 
+            gps_pos_k = gps_pos{i, k}(:, valid_indices_pr);
+            
             [ref_pos, cov1] = GNSS_LS(mes1, length(mes1), gps_pos_k);
             [ref_pos2, cov2] = GNSS_LS(mes2,length(mes2), gps_pos_k);
 
